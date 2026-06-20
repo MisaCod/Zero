@@ -38,7 +38,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun NotificacionBanner(
-    solicitud: ServiceRequest?,
+    solicitud: com.example.zero.data.model.ServiceRequestWithEquipment?,
     visible: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier

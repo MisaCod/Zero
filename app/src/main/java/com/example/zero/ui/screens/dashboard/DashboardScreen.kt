@@ -71,6 +71,8 @@ import com.example.zero.model.Alert
 import com.example.zero.model.AlertSeverity
 import com.example.zero.model.Priority
 import com.example.zero.model.WorkOrder
+import com.example.zero.data.model.ServiceRequest
+import com.example.zero.ui.screens.detail.ServiceRequestDetailScreen
 import com.example.zero.ui.components.ActiveChip
 import com.example.zero.ui.components.HighPriorityChip
 import com.example.zero.ui.components.MediumPriorityChip
@@ -165,6 +167,7 @@ private val initialAlerts = listOf(
 fun DashboardScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onScannerClick: () -> Unit = {},
+    onSolicitudClick: (com.example.zero.data.model.ServiceRequestWithEquipment) -> Unit = {},
     authViewModel: AuthViewModel = viewModel(),
     serviceRequestViewModel: ServiceRequestViewModel = viewModel()
 ) {
@@ -174,8 +177,9 @@ fun DashboardScreen(
     }
 
     val liveSolicitudes = serviceRequestViewModel.solicitudes
+    var selectedSolicitud by remember { mutableStateOf<com.example.zero.data.model.ServiceRequestWithEquipment?>(null) }
 
-    // Mapear ServiceRequest a WorkOrder para la UI existente
+    // Mapear ServiceRequestWithEquipment a WorkOrder para la UI existente
     val workOrders = remember(liveSolicitudes.size) { 
         mutableStateListOf(*liveSolicitudes.map { req ->
             WorkOrder(
@@ -183,12 +187,8 @@ fun DashboardScreen(
                 code = "#SR-${req.id?.take(4)?.uppercase() ?: "NEW"}",
                 title = req.title,
                 location = req.location,
-                time = req.scheduledDate ?: req.createdAt?.take(10) ?: "Pronto",
-                priority = when(req.priority.lowercase()) {
-                    "alta" -> Priority.HIGH
-                    "media" -> Priority.MEDIUM
-                    else -> Priority.LOW
-                },
+                time = req.createdAt?.take(10) ?: "Reciente",
+                priority = Priority.MEDIUM,
                 icon = Icons.Filled.AcUnit,
                 imageUrl = ""
             )
@@ -228,7 +228,13 @@ fun DashboardScreen(
             }
 
             // ── Work Orders (animated list) ──────────────────────────────────
-            WorkOrdersSection(workOrders = workOrders)
+            WorkOrdersSection(
+                workOrders = workOrders,
+                onOrderClick = { orderId ->
+                    val req = liveSolicitudes.find { it.id == orderId }
+                    req?.let { selectedSolicitud = it }
+                },
+            )
 
             // ── Alerts (animated list) ───────────────────────────────────────
             if (authViewModel.userRole != UserRole.CLIENTE) {
@@ -275,6 +281,16 @@ fun DashboardScreen(
                     }
                 )
             }
+        )
+    }
+
+    // ── Pantalla de Detalle de Solicitud ──────────────────────────────────
+    selectedSolicitud?.let { solicitud ->
+        ServiceRequestDetailScreen(
+            solicitud = solicitud,
+            onBack = { selectedSolicitud = null },
+            authViewModel = authViewModel,
+            serviceRequestViewModel = serviceRequestViewModel,
         )
     }
 }
@@ -420,6 +436,7 @@ private fun ScannerBanner(onClick: () -> Unit) {
 @Composable
 private fun WorkOrdersSection(
     workOrders: MutableList<WorkOrder>,
+    onOrderClick: (String) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.md)) {
         // Section header
@@ -470,7 +487,8 @@ private fun WorkOrdersSection(
                 ) {
                     WorkOrderCard(
                         workOrder = order,
-                        onAction = {
+                        onAction = { onOrderClick(order.id) },
+                        onDismiss = {
                             // Trigger the exit animation
                             dismissState.targetState = false
                         },
@@ -675,6 +693,7 @@ private fun BentoStatCard(
 private fun WorkOrderCard(
     workOrder: WorkOrder,
     onAction: () -> Unit,
+    onDismiss: () -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 

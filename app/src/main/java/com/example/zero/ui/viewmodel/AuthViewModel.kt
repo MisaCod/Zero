@@ -76,22 +76,17 @@ class AuthViewModel : ViewModel() {
             val result = authRepository.signIn(email.trim(), password)
 
             result.fold(
-                onSuccess = {
+                onSuccess = { user ->
                     isLoggedIn = true
+                    // Obtener rol directamente del usuario autenticado
+                    userRole = UserRole.fromString(user.role)
                     loadUserProfile()
                     isLoading = false
                     onSuccess()
                 },
                 onFailure = { e ->
                     isLoading = false
-                    errorMsg = when {
-                        e.message?.contains("Invalid login", ignoreCase = true) == true ->
-                            "Email o contraseña incorrectos"
-                        e.message?.contains("Email not confirmed", ignoreCase = true) == true ->
-                            "Email no confirmado. Revisa tu bandeja de entrada"
-                        else ->
-                            "Error de conexión: ${e.localizedMessage ?: "Intenta de nuevo"}"
-                    }
+                    errorMsg = e.message ?: "Error de conexión. Intenta de nuevo"
                 },
             )
         }
@@ -99,30 +94,24 @@ class AuthViewModel : ViewModel() {
 
     // ── Logout ───────────────────────────────────────────────────────────
     fun logout(onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            authRepository.signOut()
-            isLoggedIn = false
-            profile = null
-            userRole = UserRole.CLIENTE
-            errorMsg = null
-            onComplete()
-        }
+        authRepository.signOut()
+        isLoggedIn = false
+        profile = null
+        userRole = UserRole.CLIENTE
+        errorMsg = null
+        onComplete()
     }
 
     // ── Cargar perfil ────────────────────────────────────────────────────
     private suspend fun loadUserProfile() {
-        val result = authRepository.getUserProfile()
-        result.fold(
-            onSuccess = { p ->
-                profile = p
-                userRole = UserRole.fromString(p.role)
-            },
-            onFailure = {
-                // Si falla cargar el perfil, mantenemos rol por defecto
-                profile = null
-                userRole = UserRole.CLIENTE
-            },
-        )
+        authRepository.getUserProfile().onSuccess { p ->
+            profile = p
+            // El rol ya está seteado desde el login (tabla users)
+            // Solo actualizamos si no lo teníamos
+            if (userRole == UserRole.CLIENTE) {
+                userRole = authRepository.getUserRole()
+            }
+        }
     }
 
     // ── Limpiar error ────────────────────────────────────────────────────

@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">zero</string>
+    <string name="app_name">0 Grados</string>
+    <string name="app_description">Gestión de mantenimiento de equipos de refrigeración</string>
+    <string name="company_name">0 Grados</string>
 </resources>
