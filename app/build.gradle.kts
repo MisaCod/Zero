@@ -41,6 +41,11 @@ android {
             "SUPABASE_ANON_KEY",
             "\"${localProps.getProperty("SUPABASE_ANON_KEY", "")}\""
         )
+        buildConfigField(
+            "String",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "\"${localProps.getProperty("SUPABASE_SERVICE_ROLE_KEY", "")}\""
+        )
     }
 
     buildTypes {

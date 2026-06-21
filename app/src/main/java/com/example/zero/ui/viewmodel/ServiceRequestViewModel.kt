@@ -7,31 +7,37 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zero.data.model.ServiceRequest
-import com.example.zero.data.model.UserRole
+import com.example.zero.data.model.ServiceRequestWithEquipment
 import com.example.zero.data.repository.ServiceRequestRepository
-import io.github.jan.supabase.realtime.PostgresAction
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 
 // ============================================================================
 // ServiceRequestViewModel — Gestiona solicitudes y notificaciones Realtime.
 //
+// Esquema REAL:
+//   tabla: service_request
+//   cols:  id, client_id, equipment_id, status, failure_desc, created_at
+//
 // Funcionalidades:
-//   • Crear solicitudes de mantenimiento (INSERT)
-//   • Listar solicitudes existentes (SELECT)
-//   • Suscripción Realtime para notificar nuevas solicitudes a técnicos
-//   • Estado de notificación visual (banner en la app)
+//   • Crear solicitudes (INSERT con failure_desc)
+//   • Listar solicitudes (SELECT con join a client_equipment)
+//   • Suscripción Realtime INSERT → notificación en app para técnicos
+//   • Suscripción Realtime UPDATE → actualizar estado en tiempo real
+//   • Actualizar estado (UPDATE status)
 // ============================================================================
 
 class ServiceRequestViewModel : ViewModel() {
 
     private val repository = ServiceRequestRepository()
 
-    // ── Estado de solicitudes ────────────────────────────────────────────
-    val solicitudes = mutableStateListOf<ServiceRequest>()
+    // ── Lista principal de solicitudes (con datos de equipo) ─────────────
+    val solicitudes = mutableStateListOf<ServiceRequestWithEquipment>()
 
+    // ── Estados de UI ────────────────────────────────────────────────────
     var isLoading by mutableStateOf(false)
         private set
 
@@ -41,8 +47,8 @@ class ServiceRequestViewModel : ViewModel() {
     var operacionExitosa by mutableStateOf(false)
         private set
 
-    // ── Estado de notificaciones Realtime ─────────────────────────────────
-    var nuevaSolicitudNotificacion by mutableStateOf<ServiceRequest?>(null)
+    // ── Notificaciones Realtime ───────────────────────────────────────────
+    var nuevaSolicitudNotificacion by mutableStateOf<ServiceRequestWithEquipment?>(null)
         private set
 
     var mostrarBannerNotificacion by mutableStateOf(false)
@@ -50,43 +56,30 @@ class ServiceRequestViewModel : ViewModel() {
 
     private var realtimeJob: Job? = null
 
-    // ── Cargar solicitudes ───────────────────────────────────────────────
-    /**
-     * Obtiene todas las solicitudes visibles para el usuario actual.
-     * Las políticas RLS filtran automáticamente según el rol.
-     */
+    // ── Cargar solicitudes ────────────────────────────────────────────────
     fun cargarSolicitudes() {
         isLoading = true
         errorMsg = null
-
         viewModelScope.launch {
-            val result = repository.obtenerSolicitudes()
-            result.fold(
+            repository.obtenerSolicitudes().fold(
                 onSuccess = { lista ->
                     solicitudes.clear()
                     solicitudes.addAll(lista)
                     isLoading = false
                 },
                 onFailure = { e ->
-                    errorMsg = "Error al cargar solicitudes: ${e.localizedMessage}"
+                    errorMsg = "Error al cargar: ${e.localizedMessage}"
                     isLoading = false
                 },
             )
         }
     }
 
-    // ── Crear solicitud (para clientes) ──────────────────────────────────
+    // ── Crear solicitud (para Clientes) ───────────────────────────────────
     /**
-     * Inserta una nueva solicitud de mantenimiento en la base de datos.
-     *
-     * @param titulo       Título descriptivo del servicio requerido
-     * @param descripcion  Detalles del problema o mantenimiento
-     * @param ubicacion    Ubicación del equipo
-     * @param equipo       ID o nombre del equipo (opcional)
-     * @param prioridad    "alta", "media" o "baja"
-     * @param fechaProgramada Fecha deseada para el servicio (ISO 8601)
-     * @param clientId     UUID del cliente autenticado
-     * @param onSuccess    Callback al completarse exitosamente
+     * Crea una nueva solicitud usando el esquema real de la BD.
+     * El campo `titulo` se mapea a `failure_desc`.
+     * El campo `equipo` debe ser un UUID de client_equipment o null.
      */
     fun crearSolicitud(
         titulo: String,
@@ -98,8 +91,8 @@ class ServiceRequestViewModel : ViewModel() {
         clientId: String,
         onSuccess: () -> Unit = {},
     ) {
-        if (titulo.isBlank() || ubicacion.isBlank()) {
-            errorMsg = "Título y ubicación son obligatorios"
+        if (titulo.isBlank()) {
+            errorMsg = "La descripción del problema es obligatoria"
             return
         }
 
@@ -108,20 +101,28 @@ class ServiceRequestViewModel : ViewModel() {
         operacionExitosa = false
 
         viewModelScope.launch {
+            // failure_desc combina titulo + descripcion para máxima info
+            val failureDesc = if (descripcion.isBlank()) titulo
+                             else "$titulo\n\n$descripcion"
+
             val solicitud = ServiceRequest(
                 clientId = clientId,
-                title = titulo,
-                description = descripcion.ifBlank { null },
-                location = ubicacion,
                 equipmentId = equipo?.ifBlank { null },
-                priority = prioridad,
-                scheduledDate = fechaProgramada,
+                status = "SIN INICIAR",
+                failureDesc = failureDesc,
             )
 
-            val result = repository.crearSolicitud(solicitud)
-            result.fold(
+            repository.crearSolicitud(solicitud).fold(
                 onSuccess = { creada ->
-                    solicitudes.add(0, creada) // Agregar al inicio de la lista
+                    val enriquecida = ServiceRequestWithEquipment(
+                        id = creada.id,
+                        clientId = creada.clientId,
+                        equipmentId = creada.equipmentId,
+                        status = creada.status,
+                        failureDesc = creada.failureDesc,
+                        createdAt = creada.createdAt,
+                    )
+                    solicitudes.add(0, enriquecida)
                     isLoading = false
                     operacionExitosa = true
                     onSuccess()
@@ -134,87 +135,66 @@ class ServiceRequestViewModel : ViewModel() {
         }
     }
 
-    // ── Suscripción Realtime (para técnicos) ─────────────────────────────
+    // ── Suscripción Realtime (para Técnicos/Supervisores) ─────────────────
     /**
-     * Inicia la suscripción Realtime a la tabla service_request.
-     * Cada vez que un cliente crea una nueva solicitud, el técnico
-     * recibirá una notificación visual dentro de la app.
-     *
-     * Solo debe llamarse si el usuario tiene rol de TECNICO o SUPERVISOR.
+     * Escucha nuevas solicitudes en tiempo real.
+     * Muestra banner de notificación en la app cuando llega una nueva.
      */
     fun iniciarRealtimeTecnico() {
-        // Evitar suscripciones duplicadas
         if (realtimeJob?.isActive == true) return
 
         realtimeJob = viewModelScope.launch {
             try {
-                val insertFlow = repository.suscribirInserciones()
-
-                insertFlow
-                    .catch { e ->
-                        errorMsg = "Error en Realtime: ${e.localizedMessage}"
-                    }
-                    .collect { insertAction ->
-                        // Extraer datos de la nueva solicitud del evento
-                        val record = insertAction.record
-                        val nuevaSolicitud = ServiceRequest(
-                            id = record["id"]?.jsonPrimitive?.content,
-                            clientId = record["client_id"]?.jsonPrimitive?.content ?: "",
-                            title = record["title"]?.jsonPrimitive?.content ?: "Nueva Solicitud",
-                            description = record["description"]?.jsonPrimitive?.content,
-                            location = record["location"]?.jsonPrimitive?.content ?: "",
-                            priority = record["priority"]?.jsonPrimitive?.content ?: "media",
-                            status = record["status"]?.jsonPrimitive?.content ?: "SIN INICIAR",
-                            createdAt = record["created_at"]?.jsonPrimitive?.content,
+                repository.suscribirInserciones()
+                    .catch { /* ignorar errores de red */ }
+                    .collect { action ->
+                        val rec = action.record
+                        val nueva = ServiceRequestWithEquipment(
+                            id = rec["id"]?.jsonPrimitive?.content,
+                            clientId = rec["client_id"]?.jsonPrimitive?.content ?: "",
+                            equipmentId = rec["equipment_id"]?.jsonPrimitive?.content,
+                            status = rec["status"]?.jsonPrimitive?.content ?: "SIN INICIAR",
+                            failureDesc = rec["failure_desc"]?.jsonPrimitive?.content ?: "Nueva solicitud",
+                            createdAt = rec["created_at"]?.jsonPrimitive?.content,
                         )
-
-                        // Actualizar estado para mostrar banner
-                        nuevaSolicitudNotificacion = nuevaSolicitud
+                        nuevaSolicitudNotificacion = nueva
                         mostrarBannerNotificacion = true
-
-                        // Agregar a la lista local
-                        solicitudes.add(0, nuevaSolicitud)
+                        solicitudes.add(0, nueva)
                     }
-            } catch (e: Exception) {
-                errorMsg = "Error al conectar Realtime: ${e.localizedMessage}"
+            } catch (_: Exception) { }
+        }
+    }
+
+    // ── Actualizar estado (UPDATE) ────────────────────────────────────────
+    fun actualizarEstado(solicitudId: String, nuevoEstado: String) {
+        viewModelScope.launch {
+            // Actualizar localmente primero (optimistic update)
+            val idx = solicitudes.indexOfFirst { it.id == solicitudId }
+            if (idx >= 0) {
+                val actual = solicitudes[idx]
+                solicitudes[idx] = actual.copy(status = nuevoEstado)
+            }
+            // Luego persistir en BD
+            repository.actualizarEstado(solicitudId, nuevoEstado).onFailure { e ->
+                errorMsg = "Error al actualizar: ${e.localizedMessage}"
+                // Revertir si falla
+                if (idx >= 0) cargarSolicitudes()
             }
         }
     }
 
-    // ── Ocultar banner de notificación ───────────────────────────────────
+    // ── Helpers UI ────────────────────────────────────────────────────────
     fun ocultarBannerNotificacion() {
         mostrarBannerNotificacion = false
         nuevaSolicitudNotificacion = null
     }
 
-    // ── Actualizar estado de solicitud ───────────────────────────────────
-    fun actualizarEstado(solicitudId: String, nuevoEstado: String) {
-        viewModelScope.launch {
-            val result = repository.actualizarEstado(solicitudId, nuevoEstado)
-            result.fold(
-                onSuccess = { cargarSolicitudes() },
-                onFailure = { e ->
-                    errorMsg = "Error al actualizar: ${e.localizedMessage}"
-                },
-            )
-        }
-    }
+    fun clearError() { errorMsg = null }
+    fun resetOperacionExitosa() { operacionExitosa = false }
 
-    // ── Limpiar estado ───────────────────────────────────────────────────
-    fun clearError() {
-        errorMsg = null
-    }
-
-    fun resetOperacionExitosa() {
-        operacionExitosa = false
-    }
-
-    // ── Cleanup ──────────────────────────────────────────────────────────
     override fun onCleared() {
         super.onCleared()
         realtimeJob?.cancel()
-        viewModelScope.launch {
-            repository.desconectarRealtime()
-        }
+        viewModelScope.launch { repository.desconectarRealtime() }
     }
 }

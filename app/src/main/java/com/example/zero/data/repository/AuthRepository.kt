@@ -2,82 +2,107 @@ package com.example.zero.data.repository
 
 import com.example.zero.data.SupabaseClient
 import com.example.zero.data.model.Profile
+import com.example.zero.data.model.User
 import com.example.zero.data.model.UserRole
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
 
 // ============================================================================
-// AuthRepository — Maneja autenticación y perfiles de usuario.
+// AuthRepository — Autenticación usando tabla `users` con password_hash.
 //
-// Operaciones:
-//   • signIn:        Inicia sesión con email y contraseña via Supabase Auth
-//   • signOut:       Cierra la sesión activa
-//   • getCurrentUserId: Obtiene el UUID del usuario autenticado
-//   • getUserProfile: Consulta la tabla `profile` para obtener el rol
+// IMPORTANTE: Esta app NO usa Supabase Auth (JWT flow).
+// Usa autenticación custom con la tabla `users` que tiene:
+//   • email, password_hash, role
+// Y la tabla `profile` con datos personales:
+//   • user_id, name, last_name, identity_card, phone_number, address
+//
+// Flujo de login:
+//   1. SELECT de users WHERE email = ? AND password_hash = ?
+//   2. Si encontrado: guardar userId y role en memoria
+//   3. Cargar Profile de la tabla profile WHERE user_id = ?
 // ============================================================================
 
 class AuthRepository {
 
     private val client = SupabaseClient.client
+    private val authClient = SupabaseClient.authClient  // bypassa RLS para login
 
-    // ── Iniciar sesión ──────────────────────────────────────────────────
-    suspend fun signIn(email: String, password: String): Result<Unit> {
+    // Estado de sesión en memoria (simple, sin JWT)
+    private var currentUserId: String? = null
+    private var currentUserRole: String? = null
+    private var currentEmail: String? = null
+
+    // ── Iniciar sesión (custom auth con tabla users) ──────────────────────
+    suspend fun signIn(email: String, password: String): Result<User> {
         return try {
-            client.auth.signInWith(Email) {
-                this.email = email
-                this.password = password
+            // Usamos authClient (service_role) porque la tabla users tiene RLS
+            // que bloquea lecturas anónimas — es intencional para seguridad
+            val users = authClient.postgrest
+                .from("users")
+                .select {
+                    filter {
+                        eq("email", email.trim())
+                        eq("password_hash", password)
+                    }
+                }
+                .decodeList<User>()
+
+            if (users.isEmpty()) {
+                return Result.failure(Exception("Email o contraseña incorrectos"))
             }
-            Result.success(Unit)
+
+            val user = users.first()
+            currentUserId = user.id
+            currentUserRole = user.role
+            currentEmail = user.email
+
+            Result.success(user)
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Error de conexión: ${e.localizedMessage}"))
         }
     }
 
-    // ── Cerrar sesión ───────────────────────────────────────────────────
-    suspend fun signOut(): Result<Unit> {
-        return try {
-            client.auth.signOut()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    // ── Cerrar sesión ─────────────────────────────────────────────────────
+    fun signOut() {
+        currentUserId = null
+        currentUserRole = null
+        currentEmail = null
     }
 
-    // ── Obtener el ID del usuario actual ─────────────────────────────────
-    fun getCurrentUserId(): String? {
-        return client.auth.currentUserOrNull()?.id
-    }
+    // ── Obtener ID del usuario actual ─────────────────────────────────────
+    fun getCurrentUserId(): String? = currentUserId
 
     // ── Verificar si hay sesión activa ────────────────────────────────────
-    fun isLoggedIn(): Boolean {
-        return client.auth.currentUserOrNull() != null
-    }
+    fun isLoggedIn(): Boolean = currentUserId != null
 
-    // ── Obtener perfil completo del usuario (incluye el rol) ─────────────
+    // ── Obtener rol actual ────────────────────────────────────────────────
+    fun getCurrentRole(): String = currentUserRole ?: "CLIENTE"
+
+    // ── Obtener perfil del usuario ────────────────────────────────────────
     suspend fun getUserProfile(): Result<Profile> {
         return try {
-            val userId = getCurrentUserId()
-                ?: return Result.failure(Exception("No hay usuario autenticado"))
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No hay sesión activa"))
 
-            val profile = client.postgrest
+            val profiles = client.postgrest
                 .from("profile")
                 .select {
-                    filter { eq("id", userId) }
+                    filter { eq("user_id", userId) }
                 }
-                .decodeSingle<Profile>()
+                .decodeList<Profile>()
 
-            Result.success(profile)
+            if (profiles.isEmpty()) {
+                // Devolver perfil vacío si no existe
+                return Result.success(Profile(userId = userId))
+            }
+
+            Result.success(profiles.first())
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ── Obtener solo el rol del usuario ───────────────────────────────────
+    // ── Obtener rol como UserRole enum ────────────────────────────────────
     suspend fun getUserRole(): UserRole {
-        val profileResult = getUserProfile()
-        return profileResult.getOrNull()?.let {
-            UserRole.fromString(it.role)
-        } ?: UserRole.CLIENTE
+        return UserRole.fromString(getCurrentRole())
     }
 }

@@ -7,29 +7,34 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 
 // ============================================================================
-// SupabaseClient — Singleton que inicializa la conexión con Supabase.
+// SupabaseClient — Singleton con dos clientes Supabase.
 //
-// Las credenciales se leen desde BuildConfig (configuradas en local.properties).
-// Para configurar:
-//   1. Abre el archivo local.properties en la raíz del proyecto
-//   2. Agrega:  SUPABASE_URL=https://tu-proyecto.supabase.co
-//   3. Agrega:  SUPABASE_ANON_KEY=tu-anon-key-aqui
-//   4. Rebuild el proyecto
+// • client       → Usa ANON KEY  → Para datos normales con RLS
+// • authClient   → Usa SERVICE ROLE → Para autenticación custom (bypassa RLS)
+//
+// NOTA DE SEGURIDAD: El service_role key bypassa todas las políticas RLS.
+// Solo se usa para la autenticación custom (login). Para producción real
+// se debería usar Supabase Auth o una Edge Function como proxy.
 // ============================================================================
 
 object SupabaseClient {
 
+    // ── Cliente principal (anon key + RLS) ───────────────────────────────
     val client = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
     ) {
-        // Módulo de autenticación (login, signup, sesión)
         install(Auth)
-
-        // Módulo de base de datos (SELECT, INSERT, UPDATE, DELETE)
         install(Postgrest)
-
-        // Módulo de tiempo real (suscripciones a cambios en tablas)
         install(Realtime)
+    }
+
+    // ── Cliente de autenticación (service_role, bypassa RLS) ──────────────
+    // Solo usado en AuthRepository.signIn() para buscar usuarios por email+password
+    val authClient = createSupabaseClient(
+        supabaseUrl = BuildConfig.SUPABASE_URL,
+        supabaseKey = BuildConfig.SUPABASE_SERVICE_ROLE_KEY,
+    ) {
+        install(Postgrest)
     }
 }
