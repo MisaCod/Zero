@@ -48,6 +48,7 @@ import com.example.zero.ui.theme.Dimens
 @Composable
 fun AgendarMantenimientoSheet(
     isLoading: Boolean,
+    errorMsg: String? = null,
     onDismiss: () -> Unit,
     onSubmit: (titulo: String, descripcion: String, ubicacion: String, equipo: String?, prioridad: String, fecha: String?) -> Unit,
 ) {
@@ -190,6 +191,16 @@ fun AgendarMantenimientoSheet(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                 )
             )
+
+            // Error
+            if (errorMsg != null) {
+                Text(
+                    text = errorMsg,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = Dimens.sm)
+                )
+            }
 
             Spacer(modifier = Modifier.height(Dimens.md))
 

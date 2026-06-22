@@ -146,7 +146,7 @@ class EquipmentRepository {
 
     /** Obtiene equipos de un cliente especifico (CLIENTE ve solo los suyos). */
     suspend fun getClientEquipment(clientId: String): Result<List<ClientEquipmentWithDetails>> = try {
-        val equipments = client.postgrest
+        val equipments = authClient.postgrest
             .from("client_equipment")
             .select {
                 filter { eq("client_id", clientId) }
@@ -283,7 +283,7 @@ class EquipmentRepository {
 
     /** Inventario de repuestos de un cliente especifico. */
     suspend fun getClientPartsInventory(clientId: String): Result<List<ClientPartsInventoryWithDetails>> = try {
-        val items = client.postgrest
+        val items = authClient.postgrest
             .from("client_parts_inventory")
             .select {
                 filter { eq("client_id", clientId) }
@@ -342,12 +342,12 @@ class EquipmentRepository {
         equipmentId: String?,
         serialNum: String,
     ): Result<ClientPartsInventory> = try {
-        val payload = buildMap<String, Any?> {
-            put("client_id",   clientId)
-            put("parts_id",    partsId)
-            put("serial_num",  serialNum)
-            if (!equipmentId.isNullOrBlank()) put("equipment_id", equipmentId)
-        }
+        val payload = ClientPartsInventory(
+            clientId = clientId,
+            partsId = partsId,
+            equipmentId = equipmentId?.ifBlank { null },
+            serialNum = serialNum
+        )
         val result = authClient.postgrest
             .from("client_parts_inventory")
             .insert(payload) { select() }

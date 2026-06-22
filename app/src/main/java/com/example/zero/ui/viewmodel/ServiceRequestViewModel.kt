@@ -101,15 +101,22 @@ class ServiceRequestViewModel : ViewModel() {
         operacionExitosa = false
 
         viewModelScope.launch {
-            // failure_desc combina titulo + descripcion para máxima info
-            val failureDesc = if (descripcion.isBlank()) titulo
-                             else "$titulo\n\n$descripcion"
+            // failure_desc combina toda la informacion
+            val failureDescFull = """
+                Título: $titulo
+                Ubicación: $ubicacion
+                Equipo: ${equipo?.ifBlank { "No especificado" } ?: "No especificado"}
+                Prioridad: $prioridad
+                Fecha deseada: ${fechaProgramada?.ifBlank { "No especificada" } ?: "No especificada"}
+                
+                Descripción: ${descripcion.ifBlank { "Sin detalles adicionales" }}
+            """.trimIndent()
 
             val solicitud = ServiceRequest(
                 clientId = clientId,
-                equipmentId = equipo?.ifBlank { null },
+                equipmentId = null, // Se envía null porque no es un UUID seleccionado
                 status = "SIN INICIAR",
-                failureDesc = failureDesc,
+                failureDesc = failureDescFull,
             )
 
             repository.crearSolicitud(solicitud).fold(

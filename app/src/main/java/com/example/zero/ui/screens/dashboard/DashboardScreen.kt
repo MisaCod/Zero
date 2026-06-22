@@ -262,6 +262,7 @@ fun DashboardScreen(
     if (showAgendaSheet) {
         AgendarMantenimientoSheet(
             isLoading = serviceRequestViewModel.isLoading,
+            errorMsg = serviceRequestViewModel.errorMsg,
             onDismiss = { 
                 showAgendaSheet = false
                 serviceRequestViewModel.clearError()

@@ -29,12 +29,13 @@ import kotlinx.coroutines.flow.Flow
 class ServiceRequestRepository {
 
     private val client = SupabaseClient.client
+    private val authClient = SupabaseClient.authClient
     private val tableName = "service_request"
 
     // ── Obtener todas las solicitudes con join de equipo ─────────────────
     suspend fun obtenerSolicitudes(): Result<List<ServiceRequestWithEquipment>> {
         return try {
-            val solicitudes = client.postgrest
+            val solicitudes = authClient.postgrest
                 .from(tableName)
                 .select {
                     order("created_at", Order.DESCENDING)
@@ -59,7 +60,7 @@ class ServiceRequestRepository {
     // ── Obtener solicitudes de un cliente específico ──────────────────────
     suspend fun obtenerSolicitudesPorCliente(clientId: String): Result<List<ServiceRequest>> {
         return try {
-            val solicitudes = client.postgrest
+            val solicitudes = authClient.postgrest
                 .from(tableName)
                 .select {
                     filter { eq("client_id", clientId) }
@@ -80,7 +81,7 @@ class ServiceRequestRepository {
      */
     suspend fun crearSolicitud(solicitud: ServiceRequest): Result<ServiceRequest> {
         return try {
-            val result = client.postgrest
+            val result = authClient.postgrest
                 .from(tableName)
                 .insert(solicitud) { select() }
                 .decodeSingle<ServiceRequest>()
@@ -93,7 +94,7 @@ class ServiceRequestRepository {
     // ── Actualizar estado (UPDATE) ────────────────────────────────────────
     suspend fun actualizarEstado(solicitudId: String, nuevoEstado: String): Result<Unit> {
         return try {
-            client.postgrest
+            authClient.postgrest
                 .from(tableName)
                 .update({ set("status", nuevoEstado) }) {
                     filter { eq("id", solicitudId) }
