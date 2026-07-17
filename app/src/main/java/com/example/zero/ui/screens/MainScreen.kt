@@ -375,8 +375,12 @@ fun MainScreen(
                                     navController.navigate(AppRoutes.serviceDetail(it))
                                 }
                             },
+                            onFillReport = { assigmentId ->
+                                navController.navigate(AppRoutes.technicalReport(assigmentId))
+                            },
                             authViewModel = authViewModel,
                             serviceRequestViewModel = serviceRequestViewModel,
+                            isMisTrabajos = true,
                         )
                     }
 

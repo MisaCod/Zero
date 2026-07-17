@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +39,31 @@ fun TechnicalReportScreen(
     val green = Color(0xFF10B981)
 
     LaunchedEffect(vm.submitSuccess) { if (vm.submitSuccess) { vm.resetSuccess(); onSuccess() } }
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = { 
+                    showDatePicker = false
+                    datePickerState.selectedDateMillis?.let {
+                        val instant = java.time.Instant.ofEpochMilli(it)
+                        vm.updateManualEndTime(java.time.format.DateTimeFormatter.ISO_INSTANT.format(instant))
+                    }
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -83,6 +109,24 @@ fun TechnicalReportScreen(
                         unfocusedTextColor = textPrimary, focusedTextColor = textPrimary, cursorColor = cyan,
                     ),
                 )
+            }
+
+            // Fecha de finalización
+            Card(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardBg)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text("Fecha de Finalización", color = textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        Text(
+                            vm.manualEndTime?.take(10) ?: "Toca para seleccionar fecha",
+                            color = textSecondary, fontSize = 12.sp,
+                        )
+                    }
+                    Icon(Icons.Filled.CalendarToday, null, tint = cyan)
+                }
             }
 
             // Trabajo completado

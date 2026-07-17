@@ -199,6 +199,34 @@ class ServiceRequestViewModel : ViewModel() {
     fun clearError() { errorMsg = null }
     fun resetOperacionExitosa() { operacionExitosa = false }
 
+    // ── Resolver assigmentId a partir del requestId ───────────────────────
+    fun buscarAssignmentIdPorRequest(requestId: String, technicianId: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val repo = com.example.zero.data.repository.TechnicianRepository()
+            repo.getAssignmentByRequestId(requestId).fold(
+                onSuccess = { assignment -> 
+                    if (assignment != null && assignment.id != null) {
+                        onResult(assignment.id)
+                    } else {
+                        // Si no existe asignación pero está en progreso, la creamos (auto-asignación)
+                        viewModelScope.launch {
+                            val supRepo = com.example.zero.data.repository.SupervisorRepository()
+                            supRepo.assignTechnician(requestId, technicianId).onSuccess {
+                                // Buscar de nuevo
+                                repo.getAssignmentByRequestId(requestId).onSuccess { newAssign ->
+                                    onResult(newAssign?.id)
+                                }.onFailure { onResult(null) }
+                            }.onFailure {
+                                onResult(null)
+                            }
+                        }
+                    }
+                },
+                onFailure = { onResult(null) }
+            )
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         realtimeJob?.cancel()

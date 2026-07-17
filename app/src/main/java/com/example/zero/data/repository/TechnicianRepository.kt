@@ -68,4 +68,19 @@ class TechnicianRepository {
             Result.failure(e)
         }
     }
+
+    // ── Obtener asignación por solicitud ─────────────────────────────────────
+    suspend fun getAssignmentByRequestId(requestId: String): Result<Assignment?> {
+        return try {
+            val list = client.postgrest
+                .from("assigments")
+                .select {
+                    filter { eq("request_id", requestId) }
+                }
+                .decodeList<Assignment>()
+            Result.success(list.firstOrNull())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

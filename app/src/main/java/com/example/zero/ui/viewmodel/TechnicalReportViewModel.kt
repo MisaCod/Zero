@@ -11,6 +11,7 @@ import com.example.zero.data.repository.TechnicalReportRepository
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import io.github.jan.supabase.postgrest.postgrest
 
 // ============================================================================
 // TechnicalReportViewModel — Gestiona el reporte técnico de una asignación.
@@ -31,7 +32,10 @@ class TechnicalReportViewModel : ViewModel() {
     var diagnosis by mutableStateOf("")
         private set
 
-    var workDone by mutableStateOf(false)
+    var workDone by mutableStateOf(true)
+        private set
+
+    var manualEndTime by mutableStateOf<String?>(null)
         private set
 
     // start_time fijo al momento de abrir la pantalla
@@ -56,6 +60,10 @@ class TechnicalReportViewModel : ViewModel() {
         workDone = value
     }
 
+    fun updateManualEndTime(value: String) {
+        manualEndTime = value
+    }
+
     // ── Finalizar y enviar reporte ───────────────────────────────────────────
     fun submitReport(assigmentId: String, requestId: String?) {
         if (diagnosis.isBlank()) {
@@ -66,7 +74,7 @@ class TechnicalReportViewModel : ViewModel() {
         isSubmitting = true
         errorMsg = null
         viewModelScope.launch {
-            val endTime = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+            val endTime = manualEndTime ?: DateTimeFormatter.ISO_INSTANT.format(Instant.now())
             val report = TechnicalReport(
                 assigmentId = assigmentId,
                 diagnosis   = diagnosis.trim(),
@@ -77,9 +85,22 @@ class TechnicalReportViewModel : ViewModel() {
 
             reportRepo.insertReport(report).fold(
                 onSuccess = {
-                    // Si el trabajo está marcado como completado, actualizar estado
-                    if (workDone && requestId != null) {
-                        requestRepo.actualizarEstado(requestId, "TERMINADO")
+                    // Si el trabajo está marcado como completado, actualizar estado a TERMINADO
+                    if (workDone) {
+                        viewModelScope.launch {
+                            try {
+                                val reqId = requestId ?: com.example.zero.data.SupabaseClient.authClient.postgrest
+                                    .from("assigments")
+                                    .select { filter { eq("id", assigmentId) } }
+                                    .decodeSingleOrNull<com.example.zero.data.model.Assignment>()?.requestId
+                                
+                                if (reqId != null) {
+                                    requestRepo.actualizarEstado(reqId, "TERMINADO")
+                                }
+                            } catch (e: Exception) {
+                                // Ignore if assignment lookup fails, report was still sent
+                            }
+                        }
                     }
                     isSubmitting = false
                     submitSuccess = true

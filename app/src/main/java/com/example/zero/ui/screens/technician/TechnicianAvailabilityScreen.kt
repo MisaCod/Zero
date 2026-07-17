@@ -26,42 +26,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.zero.data.model.Assignment
 import com.example.zero.data.model.TechnicianDetails
 import com.example.zero.data.repository.TechnicianRepository
+import com.example.zero.ui.theme.Dimens
 import com.example.zero.ui.viewmodel.AuthViewModel
 import kotlinx.coroutines.launch
-
-class TechnicianPanelViewModel : ViewModel() {
-    private val repo = TechnicianRepository()
-    var details by mutableStateOf<TechnicianDetails?>(null)
-        private set
-    val assignments = mutableStateListOf<Assignment>()
-    var isLoading by mutableStateOf(false)
-        private set
-    var isSaving by mutableStateOf(false)
-        private set
-    var errorMsg by mutableStateOf<String?>(null)
-        private set
-
-    fun load(userId: String) {
-        isLoading = true
-        viewModelScope.launch {
-            repo.getDetails(userId).onSuccess { details = it }
-            repo.getAssignmentsByTech(userId).onSuccess { list -> assignments.clear(); assignments.addAll(list) }
-            isLoading = false
-        }
-    }
-
-    fun toggleAvailability(userId: String) {
-        val current = details?.availability ?: false
-        isSaving = true
-        viewModelScope.launch {
-            repo.updateAvailability(userId, !current).onSuccess {
-                details = details?.copy(availability = !current)
-            }.onFailure { e -> errorMsg = "Error: ${e.localizedMessage}" }
-            isSaving = false
-        }
-    }
-    fun clearError() { errorMsg = null }
-}
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,6 +157,44 @@ fun TechnicianAvailabilityScreen(
                             Text(assignment.createdAt?.take(10) ?: "", color = textSecondary.copy(alpha = 0.5f), fontSize = 11.sp)
                         }
                         Icon(Icons.Filled.ChevronRight, null, tint = textSecondary.copy(alpha = 0.4f))
+                    }
+                }
+            }
+        }
+        
+        // Reportes Técnicos
+        item {
+            Spacer(Modifier.height(Dimens.md))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.AssignmentTurnedIn, null, tint = cyan, modifier = Modifier.size(16.dp))
+                Text("MIS REPORTES TÉCNICOS (${vm.reports.size})", color = cyan.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            }
+        }
+
+        if (vm.reports.isEmpty() && !vm.isLoading) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = cardBg)) {
+                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Outlined.Description, null, tint = textSecondary.copy(alpha = 0.4f), modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("No hay reportes técnicos aún", color = textSecondary, fontSize = 14.sp)
+                    }
+                }
+            }
+        } else {
+            items(vm.reports) { report ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F2D47)),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Asignación #${report.assigmentId.take(8).uppercase()}", color = textPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Text(report.endTime?.take(10) ?: "", color = textSecondary, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(report.diagnosis.take(100) + if (report.diagnosis.length > 100) "..." else "", color = textSecondary, fontSize = 13.sp)
                     }
                 }
             }

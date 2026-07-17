@@ -17,12 +17,13 @@ import io.github.jan.supabase.postgrest.postgrest
 
 class TechnicalReportRepository {
 
-    private val client = SupabaseClient.client
+    private val client     = SupabaseClient.client
+    private val authClient = SupabaseClient.authClient  // bypassa RLS para INSERT/UPDATE
 
     // ── Insertar reporte técnico ─────────────────────────────────────────────
     suspend fun insertReport(report: TechnicalReport): Result<TechnicalReport> {
         return try {
-            val result = client.postgrest
+            val result = authClient.postgrest
                 .from("technical_report")
                 .insert(report) { select() }
                 .decodeSingle<TechnicalReport>()
@@ -35,7 +36,7 @@ class TechnicalReportRepository {
     // ── Obtener reporte por asignación ───────────────────────────────────────
     suspend fun getByAssignment(assigmentId: String): Result<TechnicalReport?> {
         return try {
-            val list = client.postgrest
+            val list = authClient.postgrest
                 .from("technical_report")
                 .select {
                     filter { eq("assigment_id", assigmentId) }

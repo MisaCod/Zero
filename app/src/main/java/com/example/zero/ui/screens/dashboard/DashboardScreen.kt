@@ -168,8 +168,10 @@ fun DashboardScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     onScannerClick: () -> Unit = {},
     onSolicitudClick: (com.example.zero.data.model.ServiceRequestWithEquipment) -> Unit = {},
+    onFillReport: (String) -> Unit = {},
     authViewModel: AuthViewModel = viewModel(),
-    serviceRequestViewModel: ServiceRequestViewModel = viewModel()
+    serviceRequestViewModel: ServiceRequestViewModel = viewModel(),
+    isMisTrabajos: Boolean = false,
 ) {
     // ── State management ─────────────────────────────────────────────────
     LaunchedEffect(Unit) {
@@ -180,8 +182,17 @@ fun DashboardScreen(
     var selectedSolicitud by remember { mutableStateOf<com.example.zero.data.model.ServiceRequestWithEquipment?>(null) }
 
     // Mapear ServiceRequestWithEquipment a WorkOrder para la UI existente
-    val workOrders = remember(liveSolicitudes.size) { 
-        mutableStateListOf(*liveSolicitudes.map { req ->
+    val workOrders = remember(liveSolicitudes.size, isMisTrabajos, authViewModel.userRole) { 
+        val filtered = if (isMisTrabajos) {
+            liveSolicitudes.filter { it.status == "EN PROGRESO" || it.status == "TERMINADO" }
+        } else {
+            if (authViewModel.userRole == UserRole.CLIENTE) {
+                liveSolicitudes
+            } else {
+                liveSolicitudes.filter { it.status == "SIN INICIAR" }
+            }
+        }
+        mutableStateListOf(*filtered.map { req ->
             WorkOrder(
                 id = req.id ?: "",
                 code = "#SR-${req.id?.take(4)?.uppercase() ?: "NEW"}",
@@ -189,11 +200,13 @@ fun DashboardScreen(
                 location = req.location,
                 time = req.createdAt?.take(10) ?: "Reciente",
                 priority = Priority.MEDIUM,
-                icon = Icons.Filled.AcUnit,
+                icon = if (req.status == "TERMINADO") Icons.Filled.CheckCircle else Icons.Filled.AcUnit,
                 imageUrl = ""
             )
         }.toTypedArray()) 
     }
+    
+    var selectedTab by remember { mutableStateOf(0) } // 0: En Progreso, 1: Finalizadas
     
     val alerts = remember { mutableStateListOf(*initialAlerts.toTypedArray()) }
     
@@ -223,21 +236,55 @@ fun DashboardScreen(
             )
 
             // ── Scanner Banner (Solo para Técnicos/Supervisores) ──────────────
-            if (authViewModel.userRole != UserRole.CLIENTE) {
+            if (authViewModel.userRole != UserRole.CLIENTE && !isMisTrabajos) {
                 ScannerBanner(onClick = onScannerClick)
             }
 
             // ── Work Orders (animated list) ──────────────────────────────────
-            WorkOrdersSection(
-                workOrders = workOrders,
-                onOrderClick = { orderId ->
-                    val req = liveSolicitudes.find { it.id == orderId }
-                    req?.let { selectedSolicitud = it }
-                },
-            )
+            if (isMisTrabajos) {
+                androidx.compose.material3.TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    androidx.compose.material3.Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("En Progreso") }
+                    )
+                    androidx.compose.material3.Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("Finalizadas") }
+                    )
+                }
+                
+                val displayedOrders = workOrders.filter { order ->
+                    val req = liveSolicitudes.find { it.id == order.id }
+                    if (selectedTab == 0) req?.status == "EN PROGRESO" else req?.status == "TERMINADO"
+                }.toMutableList()
+
+                WorkOrdersSection(
+                    workOrders = displayedOrders,
+                    onOrderClick = { orderId ->
+                        val req = liveSolicitudes.find { it.id == orderId }
+                        req?.let { selectedSolicitud = it }
+                    },
+                    title = if (selectedTab == 0) "Solicitudes en Progreso" else "Solicitudes Finalizadas"
+                )
+            } else {
+                WorkOrdersSection(
+                    workOrders = workOrders,
+                    onOrderClick = { orderId ->
+                        val req = liveSolicitudes.find { it.id == orderId }
+                        req?.let { selectedSolicitud = it }
+                    },
+                    title = "Órdenes de Trabajo Próximas"
+                )
+            }
 
             // ── Alerts (animated list) ───────────────────────────────────────
-            if (authViewModel.userRole != UserRole.CLIENTE) {
+            if (authViewModel.userRole != UserRole.CLIENTE && !isMisTrabajos) {
                 AlertsSection(alerts = alerts)
             }
         }
@@ -292,6 +339,10 @@ fun DashboardScreen(
             onBack = { selectedSolicitud = null },
             authViewModel = authViewModel,
             serviceRequestViewModel = serviceRequestViewModel,
+            onFillReport = { assigmentId ->
+                selectedSolicitud = null
+                onFillReport(assigmentId)
+            },
         )
     }
 }
@@ -438,6 +489,7 @@ private fun ScannerBanner(onClick: () -> Unit) {
 private fun WorkOrdersSection(
     workOrders: MutableList<WorkOrder>,
     onOrderClick: (String) -> Unit = {},
+    title: String = "Órdenes de Trabajo Próximas",
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.md)) {
         // Section header
@@ -447,7 +499,7 @@ private fun WorkOrdersSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Órdenes de Trabajo Próximas",
+                text = title,
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )

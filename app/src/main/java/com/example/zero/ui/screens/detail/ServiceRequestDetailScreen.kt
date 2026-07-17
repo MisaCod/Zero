@@ -173,18 +173,61 @@ fun ServiceRequestDetailScreen(
                 }
             }
 
+            // TÉCNICO: Aceptar Trabajo (si sin iniciar)
+            if (userRole == UserRole.TECNICO && estadoActual.uppercase() == "SIN INICIAR") {
+                Button(
+                    onClick = {
+                        isUpdating = true
+                        val techId = authViewModel.getCurrentUserId() ?: ""
+                        if (techId.isNotEmpty()) {
+                            // Asignar al técnico y cambiar estado
+                            serviceRequestViewModel.buscarAssignmentIdPorRequest(solId, techId) {
+                                serviceRequestViewModel.actualizarEstado(solId, "EN PROGRESO")
+                                estadoActual = "EN PROGRESO"
+                                isUpdating = false
+                            }
+                        } else {
+                            serviceRequestViewModel.actualizarEstado(solId, "EN PROGRESO")
+                            estadoActual = "EN PROGRESO"
+                            isUpdating = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0B4F7A)),
+                ) {
+                    Icon(Icons.Filled.ThumbUp, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(Dimens.sm))
+                    Text("Aceptar Trabajo", fontWeight = FontWeight.Bold)
+                }
+            }
+
             // TÉCNICO: Llenar reporte (si en progreso)
             if (userRole == UserRole.TECNICO && estadoActual.uppercase() == "EN PROGRESO") {
-                // Necesitamos el assigment_id — usamos el requestId como fallback
+                var isResolvingAssignment by remember { mutableStateOf(false) }
                 Button(
-                    onClick = { onFillReport(solId) },
+                    onClick = {
+                        isResolvingAssignment = true
+                        val techId = authViewModel.getCurrentUserId() ?: ""
+                        serviceRequestViewModel.buscarAssignmentIdPorRequest(solId, techId) { assignmentId ->
+                            isResolvingAssignment = false
+                            if (assignmentId != null) {
+                                onFillReport(assignmentId)
+                            }
+                        }
+                    },
+                    enabled = !isResolvingAssignment,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                 ) {
-                    Icon(Icons.Filled.Assignment, null, modifier = Modifier.size(18.dp))
+                    if (isResolvingAssignment) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Assignment, null, modifier = Modifier.size(18.dp))
+                    }
                     Spacer(Modifier.width(Dimens.sm))
-                    Text("Llenar Reporte Técnico", fontWeight = FontWeight.Bold)
+                    Text("Finalizar Trabajo", fontWeight = FontWeight.Bold)
                 }
             }
 
