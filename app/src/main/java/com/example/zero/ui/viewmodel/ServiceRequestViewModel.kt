@@ -199,7 +199,7 @@ class ServiceRequestViewModel : ViewModel() {
     fun clearError() { errorMsg = null }
     fun resetOperacionExitosa() { operacionExitosa = false }
 
-    // ── Resolver assigmentId a partir del requestId ───────────────────────
+    // ── Resolver assignmentId a partir del requestId ───────────────────────
     fun buscarAssignmentIdPorRequest(requestId: String, technicianId: String, onResult: (String?) -> Unit) {
         viewModelScope.launch {
             val repo = com.example.zero.data.repository.TechnicianRepository()
@@ -207,22 +207,33 @@ class ServiceRequestViewModel : ViewModel() {
                 onSuccess = { assignment -> 
                     if (assignment != null && assignment.id != null) {
                         onResult(assignment.id)
-                    } else {
-                        // Si no existe asignación pero está en progreso, la creamos (auto-asignación)
+                    } else if (technicianId.isNotEmpty()) {
+                        // Si no existe asignación pero está en progreso y tenemos técnico, la creamos (auto-asignación)
                         viewModelScope.launch {
                             val supRepo = com.example.zero.data.repository.SupervisorRepository()
                             supRepo.assignTechnician(requestId, technicianId).onSuccess {
                                 // Buscar de nuevo
                                 repo.getAssignmentByRequestId(requestId).onSuccess { newAssign ->
                                     onResult(newAssign?.id)
-                                }.onFailure { onResult(null) }
+                                }.onFailure { 
+                                    errorMsg = "Error al obtener ID de asignación creada"
+                                    onResult(null) 
+                                }
                             }.onFailure {
+                                errorMsg = "Error al auto-asignar técnico: ${it.localizedMessage}"
                                 onResult(null)
                             }
                         }
+                    } else {
+                        // Cliente buscando asignación que no existe aún
+                        errorMsg = "No se encontró un técnico asignado a este servicio para calificar."
+                        onResult(null)
                     }
                 },
-                onFailure = { onResult(null) }
+                onFailure = { 
+                    errorMsg = "Error al buscar asignación: ${it.localizedMessage}"
+                    onResult(null) 
+                }
             )
         }
     }

@@ -360,6 +360,7 @@ fun MainScreen(
                                     navController.navigate(AppRoutes.serviceDetail(it))
                                 }
                             },
+                            onRateService = { assigmentId -> navController.navigate(AppRoutes.rateService(assigmentId)) },
                             authViewModel = authViewModel,
                             serviceRequestViewModel = serviceRequestViewModel,
                         )
@@ -378,6 +379,7 @@ fun MainScreen(
                             onFillReport = { assigmentId ->
                                 navController.navigate(AppRoutes.technicalReport(assigmentId))
                             },
+                            onRateService = { assigmentId -> navController.navigate(AppRoutes.rateService(assigmentId)) },
                             authViewModel = authViewModel,
                             serviceRequestViewModel = serviceRequestViewModel,
                             isMisTrabajos = true,

@@ -33,7 +33,7 @@ fun ReportsScreen(
     vm: ReportsViewModel = viewModel(),
 ) {
     val darkBg = Color(0xFF050E17); val cardBg = Color(0xFF0A2236)
-    val cyan = Color(0xFF00C8F0); val blue = Color(0xFF0B4F7A)
+    val cyan = Color(0xFF00C8F0); val blue = Color(0xFF0B4F7A); val gold = Color(0xFFF59E0B)
     val textPrimary = Color(0xFFF0F8FF); val textSecondary = Color(0xFF7BA9C4)
     val context = LocalContext.current
 
@@ -109,7 +109,17 @@ fun ReportsScreen(
                                 colors = FilterChipDefaults.filterChipColors(selectedContainerColor = blue.copy(alpha = 0.4f), selectedLabelColor = cyan, containerColor = cardBg, labelColor = textSecondary))
                         }
                     }
-                    1 -> Text("${vm.filteredPerformance.size} técnicos", color = textSecondary, fontSize = 12.sp)
+                    1 -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Min: ", color = textSecondary, fontSize = 11.sp)
+                        (1..5).forEach { stars ->
+                            FilterChip(
+                                selected = vm.minScoreFilter == stars.toDouble(),
+                                onClick = { vm.updateScoreFilter(stars.toDouble(), 5.0) },
+                                label = { Text("$stars★", fontSize = 10.sp) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = gold.copy(alpha = 0.2f), selectedLabelColor = gold, containerColor = cardBg, labelColor = textSecondary)
+                            )
+                        }
+                    }
                     2 -> OutlinedTextField(
                         value = vm.inventorySearchQuery, onValueChange = vm::updateInventorySearch,
                         placeholder = { Text("Buscar...", color = textSecondary.copy(alpha = 0.4f), fontSize = 12.sp) },
@@ -179,9 +189,10 @@ private fun PerformanceRow(row: TechnicianPerformanceRow, cardBg: Color, tp: Col
             Column(modifier = Modifier.weight(1f)) {
                 Text(row.name, color = tp, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 Text("${row.completedAssignments} trabajos completados", color = ts, fontSize = 12.sp)
+                Text("Calificación promedio:", color = ts.copy(alpha = 0.6f), fontSize = 11.sp)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    (1..5).forEach { i -> Icon(if (i <= row.score) Icons.Filled.Star else Icons.Outlined.StarOutline, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(13.dp)) }
-                    Text(String.format("%.1f", row.score), color = Color(0xFFF59E0B), fontSize = 12.sp)
+                    (1..5).forEach { i -> Icon(if (i <= row.averageRating) Icons.Filled.Star else Icons.Outlined.StarOutline, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(13.dp)) }
+                    Text(String.format("%.1f", row.averageRating), color = Color(0xFFF59E0B), fontSize = 12.sp)
                 }
             }
         }

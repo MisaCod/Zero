@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 //
 // Esquema verificado el 2026-06-20 contra la BD real de 0 Grados.
 // Tablas: users, profile, service_request, client_equipment,
-//         equipment_catalog, equipment_type, assigments,
+//         equipment_catalog, equipment_type, assignments,
 //         technical_report, service_rating, technician_details
 // ============================================================================
 
@@ -281,8 +281,8 @@ data class TechnicalReport(
  */
 @Serializable
 data class ServiceRating(
-    @SerialName("assigment_id") val assigmentId: String = "",
-    val score: Int = 5,
+    @SerialName("assigment_id") val assigmentId: String,
+    val score: Double,
     val comments: String? = null,
 )
 

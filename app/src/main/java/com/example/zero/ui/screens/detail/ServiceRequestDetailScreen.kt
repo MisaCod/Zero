@@ -99,6 +99,27 @@ fun ServiceRequestDetailScreen(
         ) {
             Spacer(Modifier.height(Dimens.sm))
 
+            // ── Error Banner ──────────────────────────────────────────────────
+            serviceRequestViewModel.errorMsg?.let { msg ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Error, null, tint = MaterialTheme.colorScheme.error)
+                        Text(msg, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        IconButton(onClick = { serviceRequestViewModel.clearError() }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+
             // ── Indicador de Progreso de Estado ──────────────────────────────
             EstadoProgressCard(
                 estadoActual = estadoActual,

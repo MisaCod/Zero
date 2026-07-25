@@ -32,6 +32,10 @@ import kotlinx.coroutines.launch
 // ViewModel inline para rating
 class ServiceRatingViewModel : ViewModel() {
     private val repo = ServiceRatingRepository()
+    private val techRepo = com.example.zero.data.repository.TechnicianRepository()
+    
+    var assignmentId by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
     var score by androidx.compose.runtime.mutableIntStateOf(5)
         private set
     var comments by androidx.compose.runtime.mutableStateOf("")
@@ -47,26 +51,71 @@ class ServiceRatingViewModel : ViewModel() {
     var errorMsg by androidx.compose.runtime.mutableStateOf<String?>(null)
         private set
 
-    fun load(assigmentId: String) {
+    fun load(incomingId: String) {
         isLoading = true
+        errorMsg = null
         viewModelScope.launch {
-            repo.getRating(assigmentId).onSuccess { rating ->
-                if (rating != null) { alreadyRated = true; score = rating.score }
-            }
+            // 1. Intentar resolver si incomingId es un requestId buscando en assigments
+            techRepo.getAssignmentByRequestId(incomingId).fold(
+                onSuccess = { assignment ->
+                    val resolvedId = assignment?.id ?: incomingId
+                    assignmentId = resolvedId
+                    
+                    // 2. Buscar si ya existe una calificación para este ID resuelto
+                    repo.getRating(resolvedId).onSuccess { rating ->
+                        if (rating != null) { 
+                            alreadyRated = true
+                            score = rating.score.toInt() 
+                        }
+                    }
+                    
+                    if (assignment == null && incomingId.length > 30) {
+                         // Si no encontramos asignación y parece un UUID, avisar
+                         // (Esto pasa si el técnico nunca aceptó formalmente la orden en la BD)
+                    }
+                },
+                onFailure = { 
+                    assignmentId = incomingId
+                    repo.getRating(incomingId).onSuccess { rating ->
+                        if (rating != null) { alreadyRated = true; score = rating.score.toInt() }
+                    }
+                }
+            )
             isLoading = false
         }
     }
+    
     fun updateScore(s: Int) { score = s }
     fun updateComments(c: String) { comments = c }
-    fun submit(assigmentId: String) {
+    
+    fun submit(incomingId: String) {
+        val targetId = assignmentId ?: incomingId
+        val ratingValue = score.toDouble()
+        val commentValue = comments.ifBlank { null }
+        
         isSubmitting = true; errorMsg = null
         viewModelScope.launch {
-            repo.insertRating(ServiceRating(assigmentId = assigmentId, score = score, comments = comments.ifBlank { null })).fold(
-                onSuccess = { isSubmitting = false; submitSuccess = true },
-                onFailure = { e -> isSubmitting = false; errorMsg = "Error al enviar: ${e.localizedMessage}" }
+            val rating = ServiceRating(
+                assigmentId = targetId,
+                score = ratingValue,
+                comments = commentValue
+            )
+            repo.insertRating(rating).fold(
+                onSuccess = {
+                    repo.recalculateTechnicianScore(targetId)
+                    isSubmitting = false; submitSuccess = true
+                },
+                onFailure = { e -> 
+                    isSubmitting = false
+                    errorMsg = "Error al enviar: ${e.localizedMessage}"
+                    if (e.localizedMessage?.contains("23503") == true) {
+                        errorMsg = "No se puede calificar: La orden no tiene un técnico asignado formalmente en el sistema."
+                    }
+                }
             )
         }
     }
+    
     fun clearError() { errorMsg = null }
     fun resetSuccess() { submitSuccess = false }
 }
@@ -120,13 +169,23 @@ fun ServiceRatingScreen(
 
                 // Estrellas
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = cardBg)) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                         Text(
                             text = when (vm.score) { 1 -> "Muy Malo"; 2 -> "Malo"; 3 -> "Regular"; 4 -> "Bueno"; else -> "Excelente" },
                             color = when (vm.score) { 1 -> Color(0xFFEF4444); 2 -> Color(0xFFFF6B6B); 3 -> Color(0xFFF59E0B); 4 -> cyan; else -> Color(0xFF10B981) },
                             fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.wrapContentWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             (1..5).forEach { star ->
                                 val starColor by animateColorAsState(if (star <= vm.score) gold else Color.White.copy(alpha = 0.2f), animationSpec = tween(150))
                                 Icon(
@@ -135,14 +194,23 @@ fun ServiceRatingScreen(
                                     tint = starColor,
                                     modifier = Modifier.size(44.dp).clickable { vm.updateScore(star) },
                                 )
+                                if (star < 5) Spacer(Modifier.width(8.dp))
                             }
                         }
                     }
                 }
 
                 // Comentarios
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("COMENTARIOS (OPCIONAL)", color = cyan.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "COMENTARIOS (OPCIONAL)", 
+                        color = cyan.copy(alpha = 0.8f), 
+                        fontSize = 11.sp, 
+                        fontWeight = FontWeight.SemiBold, 
+                        letterSpacing = 1.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     OutlinedTextField(
                         value = vm.comments,
                         onValueChange = vm::updateComments,

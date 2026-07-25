@@ -169,6 +169,7 @@ fun DashboardScreen(
     onScannerClick: () -> Unit = {},
     onSolicitudClick: (com.example.zero.data.model.ServiceRequestWithEquipment) -> Unit = {},
     onFillReport: (String) -> Unit = {},
+    onRateService: (String) -> Unit = {},
     authViewModel: AuthViewModel = viewModel(),
     serviceRequestViewModel: ServiceRequestViewModel = viewModel(),
     isMisTrabajos: Boolean = false,
@@ -342,6 +343,10 @@ fun DashboardScreen(
             onFillReport = { assigmentId ->
                 selectedSolicitud = null
                 onFillReport(assigmentId)
+            },
+            onRateService = { assigmentId ->
+                selectedSolicitud = null
+                onRateService(assigmentId)
             },
         )
     }

@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 //   • Lista de técnicos disponibles (technician_details WHERE availability=true)
 //
 // Acciones:
-//   • assignTechnician: INSERT en assigments + UPDATE technician availability
+//   • assignTechnician: INSERT en assignments + UPDATE technician availability
 // ============================================================================
 
 class AssignTechnicianViewModel : ViewModel() {
@@ -96,7 +96,7 @@ class AssignTechnicianViewModel : ViewModel() {
         isAssigning = true
         errorMsg = null
         viewModelScope.launch {
-            // 1. INSERT en assigments
+            // 1. INSERT en assignments
             repository.assignTechnician(requestId, technician.userId).fold(
                 onSuccess = {
                     // 2. Marcar técnico como no disponible

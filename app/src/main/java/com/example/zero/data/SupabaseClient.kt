@@ -35,6 +35,7 @@ object SupabaseClient {
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseKey = BuildConfig.SUPABASE_SERVICE_ROLE_KEY,
     ) {
+        install(Auth)
         install(Postgrest)
     }
 }
