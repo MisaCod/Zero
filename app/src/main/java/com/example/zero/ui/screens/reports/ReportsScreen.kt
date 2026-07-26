@@ -2,11 +2,14 @@ package com.example.zero.ui.screens.reports
 
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -100,38 +103,77 @@ fun ReportsScreen(
 
         // Acciones top (filtros + exportar)
         item {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                when (selectedTab) {
-                    0 -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        statusFilters.forEach { f ->
-                            FilterChip(selected = vm.maintenanceStatusFilter == f, onClick = { vm.updateMaintenanceStatusFilter(f) },
-                                label = { Text(f, fontSize = 10.sp) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = blue.copy(alpha = 0.4f), selectedLabelColor = cyan, containerColor = cardBg, labelColor = textSecondary))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    when (selectedTab) {
+                        0 -> Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            statusFilters.forEach { f ->
+                                FilterChip(
+                                    selected = vm.maintenanceStatusFilter == f,
+                                    onClick = { vm.updateMaintenanceStatusFilter(f) },
+                                    label = { Text(f, fontSize = 10.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = blue.copy(alpha = 0.4f),
+                                        selectedLabelColor = cyan,
+                                        containerColor = cardBg,
+                                        labelColor = textSecondary
+                                    )
+                                )
+                            }
                         }
-                    }
-                    1 -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Min: ", color = textSecondary, fontSize = 11.sp)
-                        (1..5).forEach { stars ->
-                            FilterChip(
-                                selected = vm.minScoreFilter == stars.toDouble(),
-                                onClick = { vm.updateScoreFilter(stars.toDouble(), 5.0) },
-                                label = { Text("$stars★", fontSize = 10.sp) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = gold.copy(alpha = 0.2f), selectedLabelColor = gold, containerColor = cardBg, labelColor = textSecondary)
-                            )
+                        1 -> Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Mínimo: ", color = textSecondary, fontSize = 11.sp)
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                (0..5).forEach { stars ->
+                                    val label = if (stars == 0) "Todos" else "$stars★"
+                                    FilterChip(
+                                        selected = vm.minScoreFilter == stars.toDouble(),
+                                        onClick = { vm.updateScoreFilter(stars.toDouble(), 5.0) },
+                                        label = { Text(label, fontSize = 10.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = gold.copy(alpha = 0.2f),
+                                            selectedLabelColor = gold,
+                                            containerColor = cardBg,
+                                            labelColor = textSecondary
+                                        )
+                                    )
+                                }
+                            }
                         }
+                        2 -> OutlinedTextField(
+                            value = vm.inventorySearchQuery, onValueChange = vm::updateInventorySearch,
+                            placeholder = { Text("Buscar...", color = textSecondary.copy(alpha = 0.4f), fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(10.dp), singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color.White.copy(alpha = 0.12f), focusedBorderColor = cyan.copy(alpha = 0.6f), unfocusedContainerColor = cardBg, focusedContainerColor = cardBg, unfocusedTextColor = textPrimary, focusedTextColor = textPrimary),
+                            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                        )
                     }
-                    2 -> OutlinedTextField(
-                        value = vm.inventorySearchQuery, onValueChange = vm::updateInventorySearch,
-                        placeholder = { Text("Buscar...", color = textSecondary.copy(alpha = 0.4f), fontSize = 12.sp) },
-                        modifier = Modifier.width(180.dp).height(46.dp),
-                        shape = RoundedCornerShape(10.dp), singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color.White.copy(alpha = 0.12f), focusedBorderColor = cyan.copy(alpha = 0.6f), unfocusedContainerColor = cardBg, focusedContainerColor = cardBg, unfocusedTextColor = textPrimary, focusedTextColor = textPrimary),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
-                    )
                 }
-                if (vm.isExporting) CircularProgressIndicator(color = cyan, modifier = Modifier.size(24.dp))
-                else IconButton(onClick = { vm.exportCurrentTabCsv(selectedTab) }) {
-                    Icon(Icons.Filled.Share, null, tint = cyan)
+
+                if (vm.isExporting) {
+                    CircularProgressIndicator(color = cyan, modifier = Modifier.size(24.dp))
+                } else {
+                    IconButton(onClick = { vm.exportCurrentTabCsv(selectedTab) }) {
+                        Icon(Icons.Filled.Share, null, tint = cyan)
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -147,7 +189,7 @@ fun ReportsScreen(
             1 -> {
                 if (vm.isLoadingPerformance) { item { LoadingBox(cyan) } }
                 else if (vm.filteredPerformance.isEmpty()) { item { EmptyBox(textSecondary) } }
-                else items(vm.filteredPerformance) { row -> PerformanceRow(row, cardBg, textPrimary, textSecondary) }
+                else items(vm.filteredPerformance) { row -> PerformanceRow(row, cardBg, textPrimary, textSecondary, gold) }
             }
             2 -> {
                 if (vm.isLoadingInventory) { item { LoadingBox(cyan) } }
@@ -180,7 +222,7 @@ private fun MaintenanceRow(row: MaintenanceReportRow, statusColors: Map<String, 
 }
 
 @Composable
-private fun PerformanceRow(row: TechnicianPerformanceRow, cardBg: Color, tp: Color, ts: Color) {
+private fun PerformanceRow(row: TechnicianPerformanceRow, cardBg: Color, tp: Color, ts: Color, gold: Color) {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = cardBg)) {
         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(44.dp).background(Brush.linearGradient(listOf(Color(0xFF0B4F7A), Color(0xFF10B981).copy(alpha = 0.6f))), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
@@ -189,10 +231,29 @@ private fun PerformanceRow(row: TechnicianPerformanceRow, cardBg: Color, tp: Col
             Column(modifier = Modifier.weight(1f)) {
                 Text(row.name, color = tp, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 Text("${row.completedAssignments} trabajos completados", color = ts, fontSize = 12.sp)
-                Text("Calificación promedio:", color = ts.copy(alpha = 0.6f), fontSize = 11.sp)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    (1..5).forEach { i -> Icon(if (i <= row.averageRating) Icons.Filled.Star else Icons.Outlined.StarOutline, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(13.dp)) }
-                    Text(String.format("%.1f", row.averageRating), color = Color(0xFFF59E0B), fontSize = 12.sp)
+                
+                Spacer(Modifier.height(4.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        (1..5).forEach { i -> 
+                            val starIcon = if (i <= row.score.toInt()) Icons.Filled.Star 
+                                           else if (i - row.score < 1.0) Icons.AutoMirrored.Filled.StarHalf
+                                           else Icons.Outlined.StarOutline
+                            Icon(
+                                imageVector = starIcon, 
+                                contentDescription = null, 
+                                tint = gold, 
+                                modifier = Modifier.size(14.dp)
+                            ) 
+                        }
+                    }
+                    Text(
+                        text = String.format("%.1f", row.score), 
+                        color = gold, 
+                        fontSize = 13.sp, 
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

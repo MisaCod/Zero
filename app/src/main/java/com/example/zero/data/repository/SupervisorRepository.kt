@@ -99,7 +99,7 @@ private data class AssignmentRaw(
 @Serializable
 private data class ServiceRatingRaw(
     @SerialName("assigment_id") val assigmentId: String = "",
-    val score: Int = 0,
+    val score: Double = 0.0,
     val comments: String? = null,
 )
 
@@ -351,7 +351,8 @@ class SupervisorRepository {
                 val ratingScores = techAssignments.mapNotNull { a -> a.id?.let { ratingMap[it]?.score } }
                 val avgRating = if (ratingScores.isEmpty()) 0.0 else ratingScores.average()
                 val name = profile?.fullName?.takeIf { it.isNotBlank() } ?: user.email
-                TechnicianPerformanceRow(userId = td.userId, name = name, email = user.email, score = td.score ?: 0.0, completedAssignments = completed, averageRating = avgRating)
+                val officialScore = td.score ?: avgRating
+                TechnicianPerformanceRow(userId = td.userId, name = name, email = user.email, score = officialScore, completedAssignments = completed, averageRating = avgRating)
             }
             Result.success(rows)
         } catch (e: Exception) {

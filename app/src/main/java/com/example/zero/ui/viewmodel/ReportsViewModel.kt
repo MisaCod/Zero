@@ -45,7 +45,7 @@ class ReportsViewModel : ViewModel() {
         private set
 
     val filteredPerformance: List<TechnicianPerformanceRow>
-        get() = performanceRows.filter { it.score in minScoreFilter..maxScoreFilter }
+        get() = performanceRows.filter { it.score >= minScoreFilter && it.score <= maxScoreFilter }
 
     // ── Tab 3: Inventario ─────────────────────────────────────────────────
     val inventoryRows = mutableStateListOf<PartsInventoryRow>()
