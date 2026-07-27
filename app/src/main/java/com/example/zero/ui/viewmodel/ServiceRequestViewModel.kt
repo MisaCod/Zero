@@ -85,7 +85,8 @@ class ServiceRequestViewModel : ViewModel() {
         titulo: String,
         descripcion: String,
         ubicacion: String,
-        equipo: String?,
+        equipoDisplayText: String?,
+        equipoId: String?,
         prioridad: String,
         fechaProgramada: String?,
         clientId: String,
@@ -105,7 +106,7 @@ class ServiceRequestViewModel : ViewModel() {
             val failureDescFull = """
                 Título: $titulo
                 Ubicación: $ubicacion
-                Equipo: ${equipo?.ifBlank { "No especificado" } ?: "No especificado"}
+                Equipo: ${equipoDisplayText?.ifBlank { "No especificado" } ?: "No especificado"}
                 Prioridad: $prioridad
                 Fecha deseada: ${fechaProgramada?.ifBlank { "No especificada" } ?: "No especificada"}
                 
@@ -114,7 +115,7 @@ class ServiceRequestViewModel : ViewModel() {
 
             val solicitud = ServiceRequest(
                 clientId = clientId,
-                equipmentId = null, // Se envía null porque no es un UUID seleccionado
+                equipmentId = equipoId?.takeIf { it.isNotBlank() },
                 status = "SIN INICIAR",
                 failureDesc = failureDescFull,
             )
@@ -185,6 +186,20 @@ class ServiceRequestViewModel : ViewModel() {
             repository.actualizarEstado(solicitudId, nuevoEstado).onFailure { e ->
                 errorMsg = "Error al actualizar: ${e.localizedMessage}"
                 // Revertir si falla
+                if (idx >= 0) cargarSolicitudes()
+            }
+        }
+    }
+
+    // ── Eliminar Solicitud (DELETE) ───────────────────────────────────────
+    fun eliminarSolicitud(solicitudId: String) {
+        viewModelScope.launch {
+            val idx = solicitudes.indexOfFirst { it.id == solicitudId }
+            if (idx >= 0) {
+                solicitudes.removeAt(idx)
+            }
+            repository.eliminarSolicitud(solicitudId).onFailure { e ->
+                errorMsg = "Error al eliminar: ${e.localizedMessage}"
                 if (idx >= 0) cargarSolicitudes()
             }
         }

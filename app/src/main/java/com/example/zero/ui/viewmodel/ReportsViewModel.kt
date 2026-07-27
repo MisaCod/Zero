@@ -34,7 +34,7 @@ class ReportsViewModel : ViewModel() {
         private set
 
     val filteredMaintenance: List<MaintenanceReportRow>
-        get() = if (maintenanceStatusFilter == "TODOS") maintenanceRows.toList()
+        get() = if (maintenanceStatusFilter == "TODOS") maintenanceRows.filter { it.status?.uppercase() != "CANCELADO" }
                 else maintenanceRows.filter { it.status == maintenanceStatusFilter }
 
     // ── Tab 2: Rendimiento ────────────────────────────────────────────────

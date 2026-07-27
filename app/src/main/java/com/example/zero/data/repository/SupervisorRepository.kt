@@ -269,7 +269,7 @@ class SupervisorRepository {
                 identityCard = identityCard.take(20),
                 phoneNumber = cleanPhone.ifBlank { null },
             )
-            auth.postgrest.from("profile").insert(profile)
+            auth.postgrest.from("profile").upsert(profile)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -326,16 +326,32 @@ class SupervisorRepository {
                 val report = assign?.id?.let { reportMap[it] }
                 val techProfile = assign?.technicianId?.let { profileMap[it] }
                 val techName = techProfile?.fullName?.takeIf { it.isNotBlank() } ?: assign?.technicianId?.take(8) ?: "Sin asignar"
+
+                // Extraer serial del equipo vinculado o del texto de failure_desc
+                val serialNum = equip?.serialNum
+                    ?: run {
+                        val equipLine = req.failureDesc.lines().firstOrNull { it.trimStart().startsWith("Equipo:") }
+                        val parsed = equipLine?.substringAfter("Equipo:")?.trim()?.takeIf { it != "No especificado" && it.isNotBlank() }
+                        parsed ?: "—"
+                    }
+
+                // Extraer ubicación del equipo vinculado o del texto de failure_desc
+                val location = equip?.location
+                    ?: run {
+                        val locLine = req.failureDesc.lines().firstOrNull { it.trimStart().startsWith("Ubicación:") }
+                        locLine?.substringAfter("Ubicación:")?.trim()?.takeIf { it.isNotBlank() } ?: "—"
+                    }
+
                 MaintenanceReportRow(
                     requestId = req.id ?: "",
-                    serialNum = equip?.serialNum ?: "—",
+                    serialNum = serialNum,
                     failureDesc = req.failureDesc.take(80),
                     status = req.status,
                     technicianName = techName,
                     startTime = report?.startTime,
                     endTime = report?.endTime,
                     createdAt = req.createdAt,
-                    location = equip?.location ?: "—",
+                    location = location,
                 )
             }
             Result.success(rows)

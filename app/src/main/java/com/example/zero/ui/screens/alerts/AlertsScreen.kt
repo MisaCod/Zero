@@ -25,38 +25,28 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.zero.data.repository.AlertaSupabase
+import com.example.zero.data.model.ServiceRequestWithEquipment
 import com.example.zero.ui.components.CriticalAlertChip
 import com.example.zero.ui.components.TechFlowPrimaryButton
 import com.example.zero.ui.components.TechFlowSecondaryButton
-import com.example.zero.ui.components.WarningChip
-import com.example.zero.ui.components.StatusChip
-import com.example.zero.ui.components.ChipShape
 import com.example.zero.ui.theme.CodeTextStyle
 import com.example.zero.ui.theme.Dimens
-import com.example.zero.ui.viewmodel.AlertsViewModel
-
-// ============================================================================
-// AlertsScreen — Conectada a Supabase Realtime.
-//
-// • Carga alertas activas desde la tabla `alerts`
-// • Recibe nuevas alertas en tiempo real vía Supabase Realtime
-// • Permite atender/descartar alertas (UPDATE en BD)
-// • Fallback elegante si la tabla aún no existe (muestra vacío en lugar de error)
-// ============================================================================
+import com.example.zero.ui.viewmodel.ServiceRequestViewModel
 
 @Composable
 fun AlertsScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    alertsViewModel: AlertsViewModel = viewModel(),
+    serviceRequestViewModel: ServiceRequestViewModel = viewModel(),
 ) {
     LaunchedEffect(Unit) {
-        alertsViewModel.cargarAlertas()
+        serviceRequestViewModel.cargarSolicitudes()
     }
 
-    val alertas = alertsViewModel.alertas
-    val isLoading = alertsViewModel.isLoading
-    val criticalCount = alertas.count { it.severidad == "critical" }
+    val liveSolicitudes = serviceRequestViewModel.solicitudes
+    val isLoading = serviceRequestViewModel.isLoading
+    
+    val alertasAlta = liveSolicitudes.filter { it.failureDesc.contains("Prioridad: ALTA", ignoreCase = true) && it.status?.uppercase() != "CANCELADO" }
+    val criticalCount = alertasAlta.size
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -82,13 +72,13 @@ fun AlertsScreen(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     criticalCount > 0 -> Text(
-                        text = "🔴 $criticalCount alerta${if (criticalCount > 1) "s" else ""} crítica${if (criticalCount > 1) "s" else ""} requiere${if (criticalCount == 1) "" else "n"} atención",
+                        text = "🔴 $criticalCount solicitud${if (criticalCount > 1) "es" else ""} con prioridad ALTA requiere${if (criticalCount == 1) "" else "n"} atención",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    alertas.isNotEmpty() -> Text(
-                        text = "✅ Sin alertas críticas — ${alertas.size} advertencia${if (alertas.size > 1) "s" else ""}",
+                    else -> Text(
+                        text = "✅ Sin alertas críticas. Todos los equipos operan normalmente.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
@@ -98,7 +88,7 @@ fun AlertsScreen(
         }
 
         // ── Lista de alertas con animación ────────────────────────────────
-        items(alertas, key = { it.id ?: it.titulo }) { alerta ->
+        items(alertasAlta, key = { it.id ?: it.title }) { alerta ->
             val dismissState = remember { MutableTransitionState(true) }
 
             AnimatedVisibility(
@@ -111,18 +101,14 @@ fun AlertsScreen(
                 AlertCard(
                     alerta = alerta,
                     onAtender = {
-                        dismissState.targetState = false
-                        alerta.id?.let { alertsViewModel.atenderAlerta(it) }
+                        // TODO: Implementar lógica de navegación si es necesario
                     },
                 )
-            }
-            if (dismissState.isIdle && !dismissState.currentState) {
-                LaunchedEffect(Unit) { alertas.remove(alerta) }
             }
         }
 
         // ── Estado vacío ──────────────────────────────────────────────────
-        if (!isLoading && alertas.isEmpty()) {
+        if (!isLoading && alertasAlta.isEmpty()) {
             item {
                 Card(
                     shape = RoundedCornerShape(Dimens.xl),
@@ -147,7 +133,7 @@ fun AlertsScreen(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "Todos los equipos operan dentro de parámetros normales",
+                            "No hay solicitudes con prioridad ALTA.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -159,24 +145,16 @@ fun AlertsScreen(
 }
 
 // ============================================================================
-// AlertCard — Tarjeta de alerta con datos de Supabase
+// AlertCard — Tarjeta de alerta con datos de ServiceRequest
 // ============================================================================
 
 @Composable
 private fun AlertCard(
-    alerta: AlertaSupabase,
+    alerta: ServiceRequestWithEquipment,
     onAtender: () -> Unit = {},
 ) {
-    val borderColor = when (alerta.severidad) {
-        "critical" -> MaterialTheme.colorScheme.error
-        "warning"  -> MaterialTheme.colorScheme.tertiary
-        else       -> MaterialTheme.colorScheme.primary
-    }
-    val alertIcon: ImageVector = when (alerta.severidad) {
-        "critical" -> Icons.Filled.Error
-        "warning"  -> Icons.Filled.Warning
-        else       -> Icons.Filled.Info
-    }
+    val borderColor = MaterialTheme.colorScheme.error
+    val alertIcon: ImageVector = Icons.Filled.Error
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -201,19 +179,8 @@ private fun AlertCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    when (alerta.severidad) {
-                        "critical" -> CriticalAlertChip()
-                        "warning"  -> WarningChip()
-                        else -> StatusChip(
-                            text = "INFO",
-                            backgroundColor = MaterialTheme.colorScheme.primary,
-                            textColor = MaterialTheme.colorScheme.onPrimary,
-                            chipShape = ChipShape.Rounded,
-                        )
-                    }
-                    alerta.equipo?.let {
-                        Text(it, style = CodeTextStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    CriticalAlertChip()
+                    Text("SR-${alerta.id?.take(4)?.uppercase() ?: "NEW"}", style = CodeTextStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 // Título y descripción
@@ -221,28 +188,21 @@ private fun AlertCard(
                     Icon(alertIcon, null, tint = borderColor, modifier = Modifier.size(24.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            alerta.titulo,
+                            alerta.title,
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            alerta.descripcion,
+                            alerta.failureDesc,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
                         )
-                        alerta.ubicacion?.let { loc ->
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
-                                Text(loc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                            Text(alerta.location, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                }
-
-                // Botones
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.sm)) {
-                    TechFlowPrimaryButton("ATENDER", leadingIcon = Icons.Filled.Check, onClick = onAtender, modifier = Modifier.weight(1f))
-                    TechFlowSecondaryButton("IGNORAR", onClick = onAtender, modifier = Modifier.weight(1f))
                 }
             }
         }

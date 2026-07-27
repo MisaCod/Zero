@@ -161,7 +161,7 @@ private fun AddPartDialog(vm: ClientPartsViewModel, clientId: String, cardBg: Co
                         vm.availableParts.forEach { p -> DropdownMenuItem(text = { Column { Text(p.name, color = textPrimary, fontSize = 13.sp); Text(p.brandName, color = textSecondary, fontSize = 11.sp) } }, onClick = { selectedPart = p; partExpanded = false }) }
                     }
                 }
-                OutlinedTextField(value = serial, onValueChange = { serial = it }, label = { Text("Número de Serie del repuesto", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors)
+                OutlinedTextField(value = serial, onValueChange = { serial = it.replace(" ", "") }, label = { Text("Número de Serie del repuesto", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors)
             }
         },
         confirmButton = {

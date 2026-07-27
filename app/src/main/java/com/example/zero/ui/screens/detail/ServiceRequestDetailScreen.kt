@@ -58,6 +58,7 @@ fun ServiceRequestDetailScreen(
 ) {
     var estadoActual by remember { mutableStateOf(solicitud.status ?: "SIN INICIAR") }
     var isUpdating by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val canEdit = authViewModel.userRole == UserRole.TECNICO ||
                   authViewModel.userRole == UserRole.SUPERVISOR
 
@@ -252,6 +253,26 @@ fun ServiceRequestDetailScreen(
                 }
             }
 
+            // CLIENTE: Cancelar (si sin iniciar)
+            if (userRole == UserRole.CLIENTE && estadoActual.uppercase() == "SIN INICIAR") {
+                Button(
+                    onClick = {
+                        isUpdating = true
+                        serviceRequestViewModel.eliminarSolicitud(solId)
+                        isUpdating = false
+                        android.widget.Toast.makeText(context, "Solicitud eliminada correctamente", android.widget.Toast.LENGTH_SHORT).show()
+                        onBack()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)), // Red color for cancel
+                ) {
+                    Icon(Icons.Filled.Cancel, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(Dimens.sm))
+                    Text("Cancelar Solicitud", fontWeight = FontWeight.Bold)
+                }
+            }
+
             // CLIENTE: Calificar (si terminado)
             if (userRole == UserRole.CLIENTE && estadoActual.uppercase() == "TERMINADO") {
                 Button(
@@ -291,6 +312,37 @@ fun ServiceRequestDetailScreen(
                         Text(
                             text = "Solicitud completada exitosamente ✅",
                             color = StatusCompletedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+
+            if (estadoActual.uppercase() == "CANCELADO") {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF451A1A),
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Dimens.md),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Cancel,
+                            contentDescription = null,
+                            tint = Color(0xFFFCA5A5),
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Spacer(Modifier.width(Dimens.sm))
+                        Text(
+                            text = "Solicitud cancelada 🚫",
+                            color = Color(0xFFFCA5A5),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                         )

@@ -90,10 +90,26 @@ class UsersManagementViewModel : ViewModel() {
         identityCard: String,
         phoneNumber: String,
     ) {
-        if (email.isBlank() || password.isBlank()) {
-            errorMsg = "Email y contraseña son obligatorios"
+        if (email.isBlank() || password.isBlank() || name.isBlank() || lastName.isBlank() || identityCard.isBlank()) {
+            errorMsg = "Email, contraseña, nombre, apellido y cédula son obligatorios"
             return
         }
+
+        // Validate duplicates
+        if (allUsers.any { it.user.email.equals(email, ignoreCase = true) }) {
+            errorMsg = "Ya existe un usuario con este correo electrónico."
+            return
+        }
+        if (allUsers.any { it.identityCard == identityCard }) {
+            errorMsg = "Ya existe un usuario con esta cédula."
+            return
+        }
+        val cleanPhone = phoneNumber.filter { it.isDigit() }
+        if (cleanPhone.isNotBlank() && allUsers.any { it.profile?.phoneNumber == cleanPhone }) {
+            errorMsg = "Ya existe un usuario con este teléfono."
+            return
+        }
+
         isSaving = true
         errorMsg = null
         viewModelScope.launch {
@@ -102,7 +118,10 @@ class UsersManagementViewModel : ViewModel() {
                 onSuccess = { createdUser ->
                     val userId = createdUser.id ?: ""
                     // 2. Crear perfil
-                    repository.createProfile(userId, name, lastName, identityCard, phoneNumber)
+                    val profileRes = repository.createProfile(userId, name, lastName, identityCard, phoneNumber)
+                    if (profileRes.isFailure) {
+                        errorMsg = "Usuario creado, pero hubo un error en su perfil."
+                    }
                     // 3. Si es técnico, crear technician_details
                     if (role == "TÉCNICO") {
                         repository.createTechnicianDetails(userId)
@@ -126,6 +145,17 @@ class UsersManagementViewModel : ViewModel() {
         phoneNumber: String,
         role: String,
     ) {
+        if (name.isBlank() || lastName.isBlank()) {
+            errorMsg = "El nombre y el apellido son obligatorios."
+            return
+        }
+
+        val cleanPhone = phoneNumber.filter { it.isDigit() }
+        if (cleanPhone.isNotBlank() && allUsers.any { it.user.id != userId && it.profile?.phoneNumber == cleanPhone }) {
+            errorMsg = "Ya existe otro usuario con este teléfono."
+            return
+        }
+
         isSaving = true
         errorMsg = null
         viewModelScope.launch {

@@ -26,6 +26,7 @@ import com.example.zero.data.model.*
 import com.example.zero.data.repository.EquipmentRepository
 import com.example.zero.ui.viewmodel.AuthViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.lazy.itemsIndexed
 
 // ViewModel combinado para el módulo 3.0 — Equipo
 class EquipmentManagementViewModel : ViewModel() {
@@ -111,6 +112,101 @@ class EquipmentManagementViewModel : ViewModel() {
         }
     }
     fun clearMessages() { errorMsg = null; successMsg = null }
+
+    // ── Tipos de equipo ──────────────────────────────────────────────────
+    val equipmentTypes = mutableStateListOf<EquipmentType>()
+    var isLoadingTypes by mutableStateOf(false); private set
+
+    fun loadEquipmentTypes() {
+        isLoadingTypes = true
+        viewModelScope.launch {
+            repo.getEquipmentTypes().fold(
+                onSuccess = { list -> equipmentTypes.clear(); equipmentTypes.addAll(list) },
+                onFailure = { e -> errorMsg = "Error al cargar tipos: ${e.localizedMessage}" }
+            )
+            isLoadingTypes = false
+        }
+    }
+
+    fun addEquipmentType(name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) { errorMsg = "El nombre del tipo es obligatorio"; return }
+        if (equipmentTypes.any { it.name.equals(trimmedName, ignoreCase = true) }) {
+            errorMsg = "Ya existe un tipo de equipo con ese nombre."
+            return
+        }
+        isSaving = true
+        viewModelScope.launch {
+            repo.addEquipmentType(trimmedName).fold(
+                onSuccess = { created ->
+                    equipmentTypes.add(created)
+                    successMsg = "Tipo de equipo '${created.name}' agregado"
+                },
+                onFailure = { e -> errorMsg = "Error: ${e.localizedMessage}" }
+            )
+            isSaving = false
+        }
+    }
+
+    fun deleteEquipmentType(id: String) {
+        viewModelScope.launch {
+            repo.deleteEquipmentType(id).fold(
+                onSuccess = { equipmentTypes.removeAll { it.id == id }; successMsg = "Tipo eliminado" },
+                onFailure = { e -> errorMsg = "Error: ${e.localizedMessage}" }
+            )
+        }
+    }
+
+    // ── Marcas y Catálogo ────────────────────────────────────────────────
+    val brands = mutableStateListOf<Brand>()
+
+    fun loadBrands() {
+        viewModelScope.launch {
+            repo.getBrands().fold(
+                onSuccess = { list -> brands.clear(); brands.addAll(list) },
+                onFailure = { e -> errorMsg = "Error al cargar marcas: ${e.localizedMessage}" }
+            )
+        }
+    }
+
+    fun addBrand(name: String) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) { errorMsg = "El nombre de la marca es obligatorio"; return }
+        if (brands.any { it.name.equals(trimmedName, ignoreCase = true) }) {
+            errorMsg = "Ya existe una marca con ese nombre."
+            return
+        }
+        isSaving = true
+        viewModelScope.launch {
+            repo.addBrand(trimmedName).fold(
+                onSuccess = { created ->
+                    brands.add(created)
+                    successMsg = "Marca '${created.name}' agregada"
+                },
+                onFailure = { e -> errorMsg = "Error: ${e.localizedMessage}" }
+            )
+            isSaving = false
+        }
+    }
+
+    fun addCatalog(typeId: String, brandId: String, reference: String) {
+        val trimmedRef = reference.trim()
+        if (typeId.isBlank() || brandId.isBlank() || trimmedRef.isBlank()) {
+            errorMsg = "Tipo, marca y referencia son obligatorios"
+            return
+        }
+        isSaving = true
+        viewModelScope.launch {
+            repo.addEquipmentCatalog(typeId, brandId, trimmedRef).fold(
+                onSuccess = {
+                    repo.getEquipmentCatalogWithDetails().onSuccess { cat -> catalog.clear(); catalog.addAll(cat) }
+                    successMsg = "Modelo agregado al catálogo exitosamente"
+                },
+                onFailure = { e -> errorMsg = "Error al agregar modelo: ${e.localizedMessage}" }
+            )
+            isSaving = false
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,6 +223,7 @@ fun EquipmentManagementScreen(
 
     val clientId = authViewModel.getCurrentUserId() ?: ""
     var showAdd by remember { mutableStateOf(false) }
+    var showCatalogDialog by remember { mutableStateOf(false) }
     var deleteConfirm by remember { mutableStateOf<String?>(null) }
     var editingEquipment by remember { mutableStateOf<ClientEquipmentWithDetails?>(null) }
     val snackbar = remember { SnackbarHostState() }
@@ -139,8 +236,27 @@ fun EquipmentManagementScreen(
         containerColor = darkBg,
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAdd = true }, containerColor = blue, contentColor = Color.White, shape = RoundedCornerShape(16.dp)) {
-                Icon(Icons.Filled.Add, null)
+            if (isSupervisor) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Botón modelos/catálogo
+                    FloatingActionButton(
+                        onClick = { vm.loadEquipmentTypes(); vm.loadBrands(); showCatalogDialog = true },
+                        containerColor = Color(0xFF0D6E3E),
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Filled.Category, null, modifier = Modifier.size(22.dp))
+                    }
+                    // Botón agregar equipo
+                    FloatingActionButton(onClick = { showAdd = true }, containerColor = blue, contentColor = Color.White, shape = RoundedCornerShape(16.dp)) {
+                        Icon(Icons.Filled.Add, null)
+                    }
+                }
+            } else {
+                FloatingActionButton(onClick = { showAdd = true }, containerColor = blue, contentColor = Color.White, shape = RoundedCornerShape(16.dp)) {
+                    Icon(Icons.Filled.Add, null)
+                }
             }
         },
     ) { pad ->
@@ -261,6 +377,14 @@ fun EquipmentManagementScreen(
             onDismiss = { editingEquipment = null }
         )
     }
+
+    if (showCatalogDialog) {
+        ManageCatalogDialog(
+            vm = vm,
+            cardBg = cardBg, surfaceBg = surfaceBg, textPrimary = textPrimary, textSecondary = textSecondary, cyan = cyan,
+            onDismiss = { showCatalogDialog = false }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -288,12 +412,17 @@ private fun AddEquipmentDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // Selector de catálogo
                 ExposedDropdownMenuBox(expanded = catalogExpanded, onExpandedChange = { catalogExpanded = it }) {
-                    OutlinedTextField(value = selectedCatalog?.let { "${it.reference} (${it.typeName})" } ?: "Seleccionar modelo...", onValueChange = {}, readOnly = true, label = { Text("Modelo del Catálogo", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(catalogExpanded) }, shape = RoundedCornerShape(10.dp), colors = fieldColors)
+                    OutlinedTextField(
+                        value = selectedCatalog?.let { "${it.typeName} ${it.brandName} - ${it.reference}" } ?: "Seleccionar modelo...",
+                        onValueChange = {}, readOnly = true, label = { Text("Modelo (Tipo y Marca)", color = textSecondary, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(catalogExpanded) },
+                        shape = RoundedCornerShape(10.dp), colors = fieldColors
+                    )
                     ExposedDropdownMenu(expanded = catalogExpanded, onDismissRequest = { catalogExpanded = false }, modifier = Modifier.background(cardBg)) {
                         vm.catalog.forEach { cat -> DropdownMenuItem(text = { Column { Text(cat.reference, color = textPrimary, fontSize = 13.sp); Text("${cat.typeName} · ${cat.brandName}", color = textSecondary, fontSize = 11.sp) } }, onClick = { selectedCatalog = cat; catalogExpanded = false }) }
                     }
                 }
-                OutlinedTextField(value = serial, onValueChange = { serial = it }, label = { Text("Número de Serie", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors)
+                OutlinedTextField(value = serial, onValueChange = { serial = it.replace(" ", "") }, label = { Text("Número de Serie", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors)
                 OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Ubicación", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors)
             }
         },
@@ -330,7 +459,12 @@ private fun EditEquipmentDialog(
                 
                 // Selector de catálogo
                 ExposedDropdownMenuBox(expanded = catalogExpanded, onExpandedChange = { catalogExpanded = it }) {
-                    OutlinedTextField(value = selectedCatalog?.let { "${it.reference} (${it.typeName})" } ?: "Seleccionar modelo...", onValueChange = {}, readOnly = true, label = { Text("Modelo del Catálogo", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(catalogExpanded) }, shape = RoundedCornerShape(10.dp), colors = fieldColors)
+                    OutlinedTextField(
+                        value = selectedCatalog?.let { "${it.typeName} ${it.brandName} - ${it.reference}" } ?: "Seleccionar modelo...",
+                        onValueChange = {}, readOnly = true, label = { Text("Modelo (Tipo y Marca)", color = textSecondary, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(catalogExpanded) },
+                        shape = RoundedCornerShape(10.dp), colors = fieldColors
+                    )
                     ExposedDropdownMenu(expanded = catalogExpanded, onDismissRequest = { catalogExpanded = false }, modifier = Modifier.background(cardBg)) {
                         vm.catalog.forEach { cat -> DropdownMenuItem(text = { Column { Text(cat.reference, color = textPrimary, fontSize = 13.sp); Text("${cat.typeName} · ${cat.brandName}", color = textSecondary, fontSize = 11.sp) } }, onClick = { selectedCatalog = cat; catalogExpanded = false }) }
                     }
@@ -343,5 +477,202 @@ private fun EditEquipmentDialog(
             else TextButton(onClick = { vm.update(eq.equipment.id, selectedCatalog?.id ?: "", location, !isSupervisor, clientId); onDismiss() }, colors = ButtonDefaults.textButtonColors(contentColor = cyan)) { Text("Guardar") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = textSecondary) } },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManageCatalogDialog(
+    vm: EquipmentManagementViewModel,
+    cardBg: Color, surfaceBg: Color, textPrimary: Color, textSecondary: Color, cyan: Color,
+    onDismiss: () -> Unit,
+) {
+    var selectedType by remember { mutableStateOf<EquipmentType?>(null) }
+    var selectedBrand by remember { mutableStateOf<Brand?>(null) }
+    var reference by remember { mutableStateOf("") }
+
+    var typeExpanded by remember { mutableStateOf(false) }
+    var brandExpanded by remember { mutableStateOf(false) }
+
+    var showNewTypeDialog by remember { mutableStateOf(false) }
+    var showNewBrandDialog by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var localError by remember { mutableStateOf<String?>(null) }
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        unfocusedBorderColor = Color.White.copy(alpha = 0.12f), focusedBorderColor = cyan.copy(alpha = 0.7f),
+        unfocusedContainerColor = surfaceBg, focusedContainerColor = surfaceBg,
+        unfocusedTextColor = textPrimary, focusedTextColor = textPrimary,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Category, null, tint = cyan, modifier = Modifier.size(22.dp))
+                Text("Registrar Modelo en Catálogo", color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Crea un nuevo modelo especificando su tipo, marca y referencia.", color = textSecondary, fontSize = 13.sp)
+
+                // Dropdown Tipo
+                ExposedDropdownMenuBox(expanded = typeExpanded, onExpandedChange = { typeExpanded = it }) {
+                    OutlinedTextField(
+                        value = selectedType?.name ?: "Seleccionar Tipo...",
+                        onValueChange = {}, readOnly = true,
+                        label = { Text("Tipo de Equipo", color = textSecondary, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) },
+                        shape = RoundedCornerShape(10.dp), colors = fieldColors
+                    )
+                    ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }, modifier = Modifier.background(cardBg)) {
+                        DropdownMenuItem(
+                            text = { Text("+ Agregar Nuevo Tipo", color = cyan, fontWeight = FontWeight.Bold) },
+                            onClick = { typeExpanded = false; newName = ""; showNewTypeDialog = true }
+                        )
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        vm.equipmentTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type.name, color = textPrimary) },
+                                onClick = { selectedType = type; typeExpanded = false }
+                            )
+                        }
+                    }
+                }
+
+                // Dropdown Marca
+                ExposedDropdownMenuBox(expanded = brandExpanded, onExpandedChange = { brandExpanded = it }) {
+                    OutlinedTextField(
+                        value = selectedBrand?.name ?: "Seleccionar Marca...",
+                        onValueChange = {}, readOnly = true,
+                        label = { Text("Marca", color = textSecondary, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(brandExpanded) },
+                        shape = RoundedCornerShape(10.dp), colors = fieldColors
+                    )
+                    ExposedDropdownMenu(expanded = brandExpanded, onDismissRequest = { brandExpanded = false }, modifier = Modifier.background(cardBg)) {
+                        DropdownMenuItem(
+                            text = { Text("+ Agregar Nueva Marca", color = cyan, fontWeight = FontWeight.Bold) },
+                            onClick = { brandExpanded = false; newName = ""; showNewBrandDialog = true }
+                        )
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        vm.brands.forEach { brand ->
+                            DropdownMenuItem(
+                                text = { Text(brand.name, color = textPrimary) },
+                                onClick = { selectedBrand = brand; brandExpanded = false }
+                            )
+                        }
+                    }
+                }
+
+                // Referencia
+                OutlinedTextField(
+                    value = reference,
+                    onValueChange = { reference = it; localError = null },
+                    label = { Text("Referencia / Modelo", color = textSecondary, fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = fieldColors,
+                    singleLine = true
+                )
+
+                if (localError != null) {
+                    Text(localError!!, color = Color(0xFFEF4444), fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            if (vm.isSaving || vm.isLoadingTypes) {
+                CircularProgressIndicator(color = cyan, modifier = Modifier.size(24.dp))
+            } else {
+                TextButton(
+                    onClick = {
+                        if (selectedType == null || selectedBrand == null || reference.trim().isBlank()) {
+                            localError = "Debes seleccionar tipo, marca y escribir una referencia."
+                        } else {
+                            localError = null
+                            vm.addCatalog(selectedType!!.id, selectedBrand!!.id, reference)
+                            onDismiss()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = cyan)
+                ) {
+                    Text("Guardar Modelo", fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar", color = textSecondary) }
+        },
+    )
+
+    // Sub-diálogos para crear Tipo o Marca
+    if (showNewTypeDialog) {
+        NewItemDialog(
+            title = "Nuevo Tipo de Equipo",
+            placeholder = "Ej: Aire Acondicionado",
+            initialName = newName,
+            onDismiss = { showNewTypeDialog = false },
+            onConfirm = { name -> vm.addEquipmentType(name); showNewTypeDialog = false },
+            cardBg = cardBg, surfaceBg = surfaceBg, textPrimary = textPrimary, textSecondary = textSecondary, cyan = cyan
+        )
+    }
+
+    if (showNewBrandDialog) {
+        NewItemDialog(
+            title = "Nueva Marca",
+            placeholder = "Ej: Samsung",
+            initialName = newName,
+            onDismiss = { showNewBrandDialog = false },
+            onConfirm = { name -> vm.addBrand(name); showNewBrandDialog = false },
+            cardBg = cardBg, surfaceBg = surfaceBg, textPrimary = textPrimary, textSecondary = textSecondary, cyan = cyan
+        )
+    }
+}
+
+@Composable
+private fun NewItemDialog(
+    title: String, placeholder: String, initialName: String,
+    onDismiss: () -> Unit, onConfirm: (String) -> Unit,
+    cardBg: Color, surfaceBg: Color, textPrimary: Color, textSecondary: Color, cyan: Color
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = cardBg,
+        title = { Text(title, color = textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; error = null },
+                    placeholder = { Text(placeholder, color = textSecondary.copy(alpha = 0.5f)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.12f), focusedBorderColor = cyan,
+                        unfocusedContainerColor = surfaceBg, focusedContainerColor = surfaceBg,
+                        unfocusedTextColor = textPrimary, focusedTextColor = textPrimary
+                    )
+                )
+                if (error != null) Text(error!!, color = Color(0xFFEF4444), fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.trim().length < 2) error = "Mínimo 2 caracteres"
+                    else onConfirm(name.trim())
+                },
+                colors = ButtonDefaults.textButtonColors(contentColor = cyan)
+            ) { Text("Guardar") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar", color = textSecondary) }
+        }
     )
 }

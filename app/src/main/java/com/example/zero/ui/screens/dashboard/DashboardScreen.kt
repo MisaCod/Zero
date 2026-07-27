@@ -138,30 +138,7 @@ private val initialWorkOrders = listOf(
     ),
 )
 
-private val initialAlerts = listOf(
-    Alert(
-        id = "alert-1",
-        title = "Baja presión en Compresor 4",
-        subtitle = "Hace 15 min • Planta Sótano",
-        severity = AlertSeverity.CRITICAL,
-        icon = Icons.Filled.Error,
-    ),
-    Alert(
-        id = "alert-2",
-        title = "Falla de sensor en Sala de Máquinas",
-        subtitle = "Hace 1 hora • Torre B",
-        severity = AlertSeverity.WARNING,
-        icon = Icons.Filled.SensorsOff,
-    ),
-    Alert(
-        id = "alert-3",
-        title = "Temperatura elevada en zona de carga",
-        subtitle = "Hace 2 horas • Muelle C",
-        severity = AlertSeverity.WARNING,
-        icon = Icons.Filled.Warning,
-    ),
-)
-// endregion
+// Removed initialAlerts
 
 @Composable
 fun DashboardScreen(
@@ -187,7 +164,7 @@ fun DashboardScreen(
             liveSolicitudes.filter { it.status == "EN PROGRESO" || it.status == "TERMINADO" }
         } else {
             if (authViewModel.userRole == UserRole.CLIENTE) {
-                liveSolicitudes
+                liveSolicitudes.filter { it.status.uppercase() != "CANCELADO" }
             } else {
                 liveSolicitudes.filter { it.status == "SIN INICIAR" }
             }
@@ -208,13 +185,11 @@ fun DashboardScreen(
     
     var selectedTab by remember { mutableStateOf(0) } // 0: En Progreso, 1: Finalizadas
     
-    val alerts = remember { mutableStateListOf(*initialAlerts.toTypedArray()) }
-    
     var showAgendaSheet by remember { mutableStateOf(false) }
 
     // Dynamic statistics — automatically update when items are removed
     val ordersToday = workOrders.size
-    val criticalCount = alerts.count { it.severity == AlertSeverity.CRITICAL }
+    val criticalCount = liveSolicitudes.count { it.failureDesc.contains("Prioridad: ALTA", ignoreCase = true) && it.status?.uppercase() != "CANCELADO" }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -235,10 +210,7 @@ fun DashboardScreen(
                 criticalCount = criticalCount,
             )
 
-            // ── Scanner Banner (Solo para Técnicos/Supervisores) ──────────────
-            if (authViewModel.userRole != UserRole.CLIENTE && !isMisTrabajos) {
-                ScannerBanner(onClick = onScannerClick)
-            }
+
 
             // ── Work Orders (animated list) ──────────────────────────────────
             if (isMisTrabajos) {
@@ -283,10 +255,7 @@ fun DashboardScreen(
                 )
             }
 
-            // ── Alerts (animated list) ───────────────────────────────────────
-            if (authViewModel.userRole != UserRole.CLIENTE && !isMisTrabajos) {
-                AlertsSection(alerts = alerts)
-            }
+
         }
 
         // ── FAB para Clientes (Agendar Mantenimiento) ─────────────────────
@@ -314,12 +283,14 @@ fun DashboardScreen(
                 showAgendaSheet = false
                 serviceRequestViewModel.clearError()
             },
-            onSubmit = { titulo, descripcion, ubicacion, equipo, prioridad, fecha ->
+            clientId = authViewModel.getCurrentUserId() ?: "",
+            onSubmit = { titulo, descripcion, ubicacion, equipo, equipoId, prioridad, fecha ->
                 serviceRequestViewModel.crearSolicitud(
                     titulo = titulo,
                     descripcion = descripcion,
                     ubicacion = ubicacion,
-                    equipo = equipo,
+                    equipoDisplayText = equipo,
+                    equipoId = equipoId,
                     prioridad = prioridad,
                     fechaProgramada = fecha,
                     clientId = authViewModel.getCurrentUserId() ?: "",
@@ -410,67 +381,7 @@ private fun BentoStatsRow(
     }
 }
 
-@Composable
-private fun ScannerBanner(onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scaleOnPress(interactionSource, targetScale = 0.97f)
-            .clip(RoundedCornerShape(Dimens.xl))
-            .background(MaterialTheme.colorScheme.inverseSurface)
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(Dimens.xl),
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(Dimens.xl),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = "Escanear Equipo",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.inverseOnSurface,
-                )
-                Text(
-                    text = "Identificación rápida vía QR o Barcode",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(Dimens.xl),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.QrCodeScanner,
-                    contentDescription = "Escanear",
-                    modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun WorkOrdersSection(
@@ -573,91 +484,6 @@ private fun WorkOrdersSection(
                     Spacer(Modifier.width(Dimens.sm))
                     Text(
                         text = "¡Todas las órdenes completadas! 🎉",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlertsSection(
-    alerts: MutableList<Alert>,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.md)) {
-        Text(
-            text = "Alertas Recientes",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        // Animated alert items
-        alerts.forEach { alert ->
-            key(alert.id) {
-                val dismissState = remember { MutableTransitionState(true) }
-
-                AnimatedVisibility(
-                    visibleState = dismissState,
-                    enter = expandVertically(
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    ) + fadeIn(),
-                    exit = slideOutHorizontally(
-                        targetOffsetX = { it }, // Slide right on dismiss
-                        animationSpec = tween(300),
-                    ) + shrinkVertically(
-                        animationSpec = tween(200, delayMillis = 100),
-                    ) + fadeOut(animationSpec = tween(200)),
-                ) {
-                    AlertItem(
-                        alert = alert,
-                        onAttend = {
-                            // Trigger the exit animation
-                            dismissState.targetState = false
-                        },
-                    )
-                }
-
-                // Clean up after animation
-                if (dismissState.isIdle && !dismissState.currentState) {
-                    LaunchedEffect(Unit) {
-                        alerts.remove(alert)
-                    }
-                }
-            }
-        }
-
-        // Empty state
-        AnimatedVisibility(
-            visible = alerts.isEmpty(),
-            enter = expandVertically(
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-            ) + fadeIn(animationSpec = tween(400)),
-        ) {
-            Card(
-                shape = RoundedCornerShape(Dimens.xl),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                ),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Dimens.lg),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp),
-                    )
-                    Spacer(Modifier.width(Dimens.sm))
-                    Text(
-                        text = "Sin alertas pendientes ✅",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
@@ -840,83 +666,7 @@ private fun WorkOrderCard(
     }
 }
 
-@Composable
-private fun AlertItem(
-    alert: Alert,
-    onAttend: () -> Unit,
-) {
-    val borderColor = when (alert.severity) {
-        AlertSeverity.CRITICAL -> MaterialTheme.colorScheme.error
-        AlertSeverity.WARNING -> MaterialTheme.colorScheme.tertiary
-        AlertSeverity.INFO -> MaterialTheme.colorScheme.primary
-    }
 
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Card(
-        onClick = onAttend,
-        interactionSource = interactionSource,
-        modifier = Modifier
-            .fillMaxWidth()
-            .scaleOnPress(interactionSource),
-        shape = RoundedCornerShape(
-            topStart = 0.dp,
-            bottomStart = 0.dp,
-            topEnd = Dimens.xl,
-            bottomEnd = Dimens.xl,
-        ),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
-    ) {
-        Row {
-            // Left accent border
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(72.dp)
-                    .background(borderColor),
-            )
-
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(Dimens.md),
-                horizontalArrangement = Arrangement.spacedBy(Dimens.md),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Icon(
-                    imageVector = alert.icon,
-                    contentDescription = null,
-                    tint = borderColor,
-                )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = alert.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = alert.subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                // Attend action
-                TechFlowPrimaryButton(
-                    text = "Atender",
-                    onClick = onAttend,
-                )
-            }
-        }
-    }
-}
 
 // ============================================================================
 // Previews

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -44,13 +45,32 @@ import com.example.zero.ui.theme.Dimens
 // Permite registrar un nuevo "service_request" en Supabase.
 // ============================================================================
 
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.SelectableDates
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.LaunchedEffect
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.LocalDate
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgendarMantenimientoSheet(
     isLoading: Boolean,
     errorMsg: String? = null,
+    clientId: String,
     onDismiss: () -> Unit,
-    onSubmit: (titulo: String, descripcion: String, ubicacion: String, equipo: String?, prioridad: String, fecha: String?) -> Unit,
+    onSubmit: (titulo: String, descripcion: String, ubicacion: String, equipo: String?, equipoId: String?, prioridad: String, fecha: String?) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -59,8 +79,22 @@ fun AgendarMantenimientoSheet(
     var descripcion by remember { mutableStateOf("") }
     var ubicacion by remember { mutableStateOf("") }
     var equipo by remember { mutableStateOf("") }
+    var equipoId by remember { mutableStateOf<String?>(null) }
     var prioridad by remember { mutableStateOf("media") }
-    var fecha by remember { mutableStateOf("") } // Idealmente usar un DatePicker real
+    var fecha by remember { mutableStateOf("") }
+
+    var formError by remember { mutableStateOf<String?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var equipoExpanded by remember { mutableStateOf(false) }
+
+    val equipmentRepo = remember { com.example.zero.data.repository.EquipmentRepository() }
+    var clientEquipments by remember { mutableStateOf<List<com.example.zero.data.model.ClientEquipmentWithDetails>>(emptyList()) }
+
+    LaunchedEffect(clientId) {
+        equipmentRepo.getClientEquipment(clientId).onSuccess { list ->
+            clientEquipments = list
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -118,19 +152,47 @@ fun AgendarMantenimientoSheet(
                 )
             )
 
-            // Equipo (Opcional)
-            OutlinedTextField(
-                value = equipo,
-                onValueChange = { equipo = it },
-                label = { Text("Equipo (Opcional)") },
-                leadingIcon = { Icon(Icons.Filled.PrecisionManufacturing, null) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+            // Equipo (Opcional) Dropdown
+            ExposedDropdownMenuBox(
+                expanded = equipoExpanded,
+                onExpandedChange = { equipoExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = equipo,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Equipo (Opcional)") },
+                    leadingIcon = { Icon(Icons.Filled.PrecisionManufacturing, null) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(equipoExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    )
                 )
-            )
+                ExposedDropdownMenu(
+                    expanded = equipoExpanded,
+                    onDismissRequest = { equipoExpanded = false },
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ninguno") },
+                        onClick = { equipo = ""; equipoExpanded = false }
+                    )
+                    clientEquipments.forEach { eq ->
+                        val displayText = "${eq.serialNum} - ${eq.reference}"
+                        DropdownMenuItem(
+                            text = { Text(displayText) },
+                            onClick = { 
+                                equipo = displayText
+                                equipoId = eq.equipment.id
+                                equipoExpanded = false 
+                            }
+                        )
+                    }
+                }
+            }
 
             // Prioridad Chips
             Text(
@@ -164,17 +226,22 @@ fun AgendarMantenimientoSheet(
                 }
             }
 
-            // Fecha
+            // Fecha DatePicker
             OutlinedTextField(
                 value = fecha,
-                onValueChange = { fecha = it },
-                label = { Text("Fecha deseada (ej. 2026-06-20)") },
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Fecha deseada") },
                 leadingIcon = { Icon(Icons.Filled.CalendarToday, null) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true },
+                enabled = false, // To make the clickable work over the whole field
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                    disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
 
@@ -193,9 +260,9 @@ fun AgendarMantenimientoSheet(
             )
 
             // Error
-            if (errorMsg != null) {
+            if (errorMsg != null || formError != null) {
                 Text(
-                    text = errorMsg,
+                    text = formError ?: errorMsg ?: "",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = Dimens.sm)
@@ -204,15 +271,55 @@ fun AgendarMantenimientoSheet(
 
             Spacer(modifier = Modifier.height(Dimens.md))
 
-            TechFlowPrimaryButton(
-                text = if (isLoading) "Enviando..." else "Enviar Solicitud",
-                modifier = Modifier.fillMaxWidth(),
+            Button(
                 onClick = {
-                    if (!isLoading && titulo.isNotBlank() && ubicacion.isNotBlank()) {
-                        onSubmit(titulo, descripcion, ubicacion, equipo, prioridad, fecha)
+                    if (titulo.isBlank() || ubicacion.isBlank() || equipo.isBlank() || fecha.isBlank()) {
+                        formError = "Por favor completa todos los campos obligatorios."
+                    } else {
+                        formError = null
+                        onSubmit(titulo, descripcion, ubicacion, equipo.takeIf { it.isNotBlank() }, equipoId, prioridad, fecha)
                     }
                 },
-            )
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Agendar Solicitud")
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        val todayMillis = remember {
+            LocalDate.now().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        }
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = todayMillis,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    return utcTimeMillis >= todayMillis
+                }
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { ms ->
+                        val instant = Instant.ofEpochMilli(ms)
+                        fecha = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.of("UTC")).format(instant)
+                    }
+                    showDatePicker = false
+                }) { Text("OK", color = MaterialTheme.colorScheme.primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

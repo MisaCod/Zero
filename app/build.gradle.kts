@@ -34,17 +34,17 @@ android {
         buildConfigField(
             "String",
             "SUPABASE_URL",
-            "\"${localProps.getProperty("SUPABASE_URL", "")}\""
+            "\"${localProps.getProperty("SUPABASE_URL", "https://ehbrpeqfiebzafxmwgsn.supabase.co")}\""
         )
         buildConfigField(
             "String",
             "SUPABASE_ANON_KEY",
-            "\"${localProps.getProperty("SUPABASE_ANON_KEY", "")}\""
+            "\"${localProps.getProperty("SUPABASE_ANON_KEY", "sb_publishable_Ne06I7eOhWFg9bkyqnorIA_Wi6tNcNb")}\""
         )
         buildConfigField(
             "String",
             "SUPABASE_SERVICE_ROLE_KEY",
-            "\"${localProps.getProperty("SUPABASE_SERVICE_ROLE_KEY", "")}\""
+            "\"${localProps.getProperty("SUPABASE_SERVICE_ROLE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoYnJwZXFmaWViemFmeG13Z3NuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODA3Njk0MiwiZXhwIjoyMDkzNjUyOTQyfQ.F7cLcf0QFMfUgi93aYj3YZubls62am16bS8ZXINlkms")}\""
         )
     }
 

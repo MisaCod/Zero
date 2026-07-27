@@ -301,24 +301,19 @@ fun MainScreen(
                             }
                         },
                         navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Outlined.Menu, null, tint = Color.White)
+                            val isRootRoute = bottomTabs.any { it.route == currentRoute }
+                            if (isRootRoute) {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Outlined.Menu, null, tint = Color.White)
+                                }
+                            } else {
+                                IconButton(onClick = { navController.popBackStack() }) {
+                                    Icon(Icons.Filled.ArrowBack, contentDescription = "Atrás", tint = Color.White)
+                                }
                             }
                         },
                         actions = {
-                            // FAB contextual por rol en el top bar
-                            if (userRole == UserRole.CLIENTE && currentRoute == AppRoutes.SERVICE_LIST) {
-                                IconButton(onClick = { navController.navigate(AppRoutes.NEW_REQUEST) }) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(Brush.linearGradient(listOf(blue, cyan)), RoundedCornerShape(10.dp)),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(Icons.Filled.Add, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                    }
-                                }
-                            }
+                            // (El botón + adicional ha sido removido según solicitud)
                             // Avatar perfil
                             IconButton(onClick = { navController.navigate(AppRoutes.PROFILE) }) {
                                 Box(

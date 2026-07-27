@@ -208,7 +208,7 @@ private fun AddUserDialog(cardBg: Color, surfaceBg: Color, textPrimary: Color, t
                 OutlinedTextField(value = pw, onValueChange = { pw = it }, label = { Text("Contraseña *", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors, singleLine = true)
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors, singleLine = true)
                 OutlinedTextField(value = lastName, onValueChange = { lastName = it }, label = { Text("Apellido", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors, singleLine = true)
-                OutlinedTextField(value = ci, onValueChange = { ci = it }, label = { Text("Cédula", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors, singleLine = true)
+                OutlinedTextField(value = ci, onValueChange = { ci = it.filter { c -> c.isDigit() } }, label = { Text("Cédula", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = fieldColors, singleLine = true)
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { if (it.length <= 11) phone = it.filter { c -> c.isDigit() } },
@@ -249,8 +249,22 @@ private fun EditUserDialog(uwp: UserWithProfile, cardBg: Color, surfaceBg: Color
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(uwp.user.email, color = textSecondary, fontSize = 12.sp)
                 listOf(name to "Nombre", lastName to "Apellido", phone to "Teléfono").forEachIndexed { i, (v, label) ->
-                    OutlinedTextField(value = v, onValueChange = { nv -> when(i){0->name=nv;1->lastName=nv;2->phone=nv} }, label = { Text(label, color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color.White.copy(alpha = 0.12f), focusedBorderColor = cyan.copy(alpha = 0.7f), unfocusedContainerColor = surfaceBg, focusedContainerColor = surfaceBg, unfocusedTextColor = textPrimary, focusedTextColor = textPrimary))
+                    val isPhone = i == 2
+                    OutlinedTextField(
+                        value = v,
+                        onValueChange = { nv -> 
+                            when(i) {
+                                0 -> name = nv
+                                1 -> lastName = nv
+                                2 -> if (nv.length <= 11) phone = nv.filter { c -> c.isDigit() }
+                            }
+                        },
+                        label = { Text(if (isPhone) "Teléfono (04121234567)" else label, color = textSecondary, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color.White.copy(alpha = 0.12f), focusedBorderColor = cyan.copy(alpha = 0.7f), unfocusedContainerColor = surfaceBg, focusedContainerColor = surfaceBg, unfocusedTextColor = textPrimary, focusedTextColor = textPrimary),
+                        supportingText = if (isPhone) { { Text("${phone.length}/11 dígitos", color = textSecondary.copy(alpha = 0.6f), fontSize = 10.sp) } } else null
+                    )
                 }
                 ExposedDropdownMenuBox(expanded = roleExpanded, onExpandedChange = { roleExpanded = it }) {
                     OutlinedTextField(value = role, onValueChange = {}, readOnly = true, label = { Text("Rol", color = textSecondary, fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(roleExpanded) }, shape = RoundedCornerShape(10.dp),

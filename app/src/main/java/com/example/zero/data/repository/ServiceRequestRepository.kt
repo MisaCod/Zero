@@ -105,6 +105,20 @@ class ServiceRequestRepository {
         }
     }
 
+    // ── Eliminar Solicitud (DELETE) ───────────────────────────────────────
+    suspend fun eliminarSolicitud(solicitudId: String): Result<Unit> {
+        return try {
+            authClient.postgrest
+                .from(tableName)
+                .delete {
+                    filter { eq("id", solicitudId) }
+                }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ── Suscripción Realtime ──────────────────────────────────────────────
     /**
      * Flow que emite cada INSERT nuevo en service_request.
