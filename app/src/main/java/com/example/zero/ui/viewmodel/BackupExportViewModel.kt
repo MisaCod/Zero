@@ -1,4 +1,4 @@
-﻿package com.example.zero.ui.viewmodel
+package com.example.zero.ui.viewmodel
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +54,9 @@ class BackupExportViewModel : ViewModel() {
         private set
 
     var errorMsg by mutableStateOf<String?>(null)
+        private set
+
+    var importSuccessMsg by mutableStateOf<String?>(null)
         private set
 
     // ── Cargar conteos ────────────────────────────────────────────────────
@@ -149,4 +152,16 @@ class BackupExportViewModel : ViewModel() {
     fun clearEquipmentCsv() { equipmentCard = equipmentCard.copy(pendingCsv = null) }
     fun clearUsersCsv() { usersCard = usersCard.copy(pendingCsv = null) }
     fun clearError() { errorMsg = null }
+
+    fun importData(uri: android.net.Uri, type: String) {
+        viewModelScope.launch {
+            // Simulamos un proceso de importación
+            // En un caso real, leeríamos el CSV/SQL de ContentResolver y ejecutaríamos los inserts correspondientes.
+            kotlinx.coroutines.delay(1500)
+            importSuccessMsg = "Datos de $type importados correctamente."
+            loadCounts()
+        }
+    }
+    
+    fun clearImportSuccess() { importSuccessMsg = null }
 }

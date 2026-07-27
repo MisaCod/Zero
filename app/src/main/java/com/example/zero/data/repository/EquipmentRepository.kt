@@ -222,6 +222,25 @@ class EquipmentRepository {
         Result.success(result)
     } catch (e: Exception) { Result.failure(e) }
 
+    suspend fun updateClientEquipment(
+        id: String,
+        catalogId: String,
+        location: String,
+    ): Result<ClientEquipment> = try {
+        val payload = mapOf(
+            "catalog_id" to catalogId,
+            "location"   to location,
+        )
+        val result = authClient.postgrest
+            .from("client_equipment")
+            .update(payload) {
+                filter { eq("id", id) }
+                select()
+            }
+            .decodeSingle<ClientEquipment>()
+        Result.success(result)
+    } catch (e: Exception) { Result.failure(e) }
+
     suspend fun deleteClientEquipment(id: String): Result<Unit> = try {
         authClient.postgrest
             .from("client_equipment")

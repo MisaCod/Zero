@@ -1,5 +1,10 @@
 package com.example.zero.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +45,7 @@ import com.example.zero.ui.screens.supervisor.AssignTechnicianScreen
 import com.example.zero.ui.screens.supervisor.BackupExportScreen
 import com.example.zero.ui.screens.supervisor.UsersManagementScreen
 import com.example.zero.ui.screens.technician.TechnicianAvailabilityScreen
+import com.example.zero.ui.screens.faq.FaqScreen
 import com.example.zero.ui.viewmodel.AuthViewModel
 import com.example.zero.ui.viewmodel.ServiceRequestViewModel
 import kotlinx.coroutines.launch
@@ -81,6 +87,7 @@ object AppRoutes {
 
     // Historial
     const val HISTORY = "history"
+    const val FAQ = "faq"
 
     fun serviceDetail(id: String) = "service_detail/$id"
     fun rateService(assigmentId: String) = "rate_service/$assigmentId"
@@ -109,8 +116,9 @@ fun MainScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val userRole = authViewModel.userRole
     val profile = authViewModel.profile
+    val userRole = authViewModel.userRole
+    val context = LocalContext.current
 
     // ── Tabs por rol ──────────────────────────────────────────────────────
     val bottomTabs = remember(userRole) {
@@ -225,6 +233,33 @@ fun MainScreen(
                     onClick = {
                         scope.launch { drawerState.close() }
                         navController.navigate(AppRoutes.ALERTS)
+                    },
+                    cyan = cyan,
+                )
+                
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 8.dp, horizontal = 24.dp))
+                
+                DrawerItem(
+                    label = "Manual de Usuario",
+                    icon = Icons.Outlined.MenuBook,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        try {
+                            // Se recomienda alojar el PDF y abrir la URL, es la forma más ligera y compatible.
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://drive.google.com/file/d/1gVFKnRIOX5p2oT87cYtUFDrgdE6x4F6S/view?usp=drivesdk"))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "No se pudo abrir el manual", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    cyan = cyan,
+                )
+                DrawerItem(
+                    label = "Preguntas Frecuentes",
+                    icon = Icons.Outlined.HelpOutline,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate(AppRoutes.FAQ)
                     },
                     cyan = cyan,
                 )
@@ -517,6 +552,14 @@ fun MainScreen(
                         ProfileScreen(
                             authViewModel = authViewModel,
                             onBack = { navController.popBackStack() },
+                        )
+                    }
+
+                    // ── FAQ ───────────────────────────────────────────────────
+                    composable(AppRoutes.FAQ) {
+                        FaqScreen(
+                            userRole = userRole,
+                            onBack = { navController.popBackStack() }
                         )
                     }
                 }

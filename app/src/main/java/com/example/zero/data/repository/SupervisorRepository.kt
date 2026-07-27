@@ -202,6 +202,19 @@ class SupervisorRepository {
         }
     }
 
+    suspend fun updateServiceRequestStatus(requestId: String, status: String): Result<Unit> {
+        return try {
+            auth.postgrest
+                .from("service_request")
+                .update({ set("status", status) }) {
+                    filter { eq("id", requestId) }
+                }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun setTechnicianAvailability(technicianId: String, available: Boolean): Result<Unit> {
         return try {
             auth.postgrest

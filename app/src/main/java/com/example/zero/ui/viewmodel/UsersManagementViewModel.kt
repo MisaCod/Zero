@@ -1,4 +1,4 @@
-﻿package com.example.zero.ui.viewmodel
+package com.example.zero.ui.viewmodel
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -41,9 +41,17 @@ class UsersManagementViewModel : ViewModel() {
     var activeFilter by mutableStateOf("TODOS")
         private set
 
+    var searchCedula by mutableStateOf("")
+        private set
+
     val filteredUsers: List<UserWithProfile>
-        get() = if (activeFilter == "TODOS") allUsers.toList()
-                else allUsers.filter { it.user.role == activeFilter }
+        get() {
+            var list = if (activeFilter == "TODOS") allUsers.toList() else allUsers.filter { it.user.role == activeFilter }
+            if (searchCedula.isNotBlank()) {
+                list = list.filter { it.identityCard.contains(searchCedula, ignoreCase = true) }
+            }
+            return list
+        }
 
     // ── Cargar todos los usuarios ─────────────────────────────────────────
     fun loadUsers() {
@@ -66,6 +74,10 @@ class UsersManagementViewModel : ViewModel() {
     // ── Cambiar filtro ────────────────────────────────────────────────────
     fun setFilter(filter: String) {
         activeFilter = filter
+    }
+
+    fun updateSearchCedula(cedula: String) {
+        searchCedula = cedula
     }
 
     // ── Crear usuario completo ────────────────────────────────────────────

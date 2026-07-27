@@ -180,7 +180,6 @@ fun DashboardScreen(
     }
 
     val liveSolicitudes = serviceRequestViewModel.solicitudes
-    var selectedSolicitud by remember { mutableStateOf<com.example.zero.data.model.ServiceRequestWithEquipment?>(null) }
 
     // Mapear ServiceRequestWithEquipment a WorkOrder para la UI existente
     val workOrders = remember(liveSolicitudes.size, isMisTrabajos, authViewModel.userRole) { 
@@ -269,7 +268,7 @@ fun DashboardScreen(
                     workOrders = displayedOrders,
                     onOrderClick = { orderId ->
                         val req = liveSolicitudes.find { it.id == orderId }
-                        req?.let { selectedSolicitud = it }
+                        req?.let { onSolicitudClick(it) }
                     },
                     title = if (selectedTab == 0) "Solicitudes en Progreso" else "Solicitudes Finalizadas"
                 )
@@ -278,7 +277,7 @@ fun DashboardScreen(
                     workOrders = workOrders,
                     onOrderClick = { orderId ->
                         val req = liveSolicitudes.find { it.id == orderId }
-                        req?.let { selectedSolicitud = it }
+                        req?.let { onSolicitudClick(it) }
                     },
                     title = "Órdenes de Trabajo Próximas"
                 )
@@ -333,23 +332,6 @@ fun DashboardScreen(
         )
     }
 
-    // ── Pantalla de Detalle de Solicitud ──────────────────────────────────
-    selectedSolicitud?.let { solicitud ->
-        ServiceRequestDetailScreen(
-            solicitud = solicitud,
-            onBack = { selectedSolicitud = null },
-            authViewModel = authViewModel,
-            serviceRequestViewModel = serviceRequestViewModel,
-            onFillReport = { assigmentId ->
-                selectedSolicitud = null
-                onFillReport(assigmentId)
-            },
-            onRateService = { assigmentId ->
-                selectedSolicitud = null
-                onRateService(assigmentId)
-            },
-        )
-    }
 }
 
 // ============================================================================

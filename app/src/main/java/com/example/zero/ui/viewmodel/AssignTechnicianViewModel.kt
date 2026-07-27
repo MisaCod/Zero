@@ -101,7 +101,9 @@ class AssignTechnicianViewModel : ViewModel() {
                 onSuccess = {
                     // 2. Marcar técnico como no disponible
                     repository.setTechnicianAvailability(technician.userId, false)
-                    // 3. Actualizar lista local
+                    // 3. Actualizar estado de la solicitud
+                    repository.updateServiceRequestStatus(requestId, "EN PROGRESO")
+                    // 4. Actualizar lista local
                     technicians.remove(technician)
                     assignedTechnicianName = "${technician.name} ${technician.lastName}".trim()
                     assignmentSuccess = true

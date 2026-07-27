@@ -1,0 +1,11 @@
+## This file is a template for required local properties.
+# Copy this file to `local.properties` and fill in your actual values.
+# DO NOT commit the actual `local.properties` file to version control.
+
+# Location of the SDK (Example for Windows)
+# sdk.dir=C\:\\Users\\YourUsername\\AppData\\Local\\Android\\Sdk
+
+# Supabase Configuration
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your-anon-key-here
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here

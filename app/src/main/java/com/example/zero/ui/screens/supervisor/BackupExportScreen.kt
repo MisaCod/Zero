@@ -1,6 +1,8 @@
 package com.example.zero.ui.screens.supervisor
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +60,19 @@ fun BackupExportScreen(
         }
     }
 
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(vm.importSuccessMsg) {
+        vm.importSuccessMsg?.let { msg ->
+            snackbar.showSnackbar(msg)
+            vm.clearImportSuccess()
+        }
+    }
+
+    var importType by remember { mutableStateOf("") }
+    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { vm.importData(it, importType) }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -67,6 +82,7 @@ fun BackupExportScreen(
             )
         },
         containerColor = darkBg,
+        snackbarHost = { SnackbarHost(snackbar) }
     ) { pad ->
         Column(
             modifier = Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(20.dp),
@@ -98,6 +114,7 @@ fun BackupExportScreen(
                 textPrimary = textPrimary,
                 textSecondary = textSecondary,
                 onExport = { vm.exportServiceRequests() },
+                onImport = { importType = "Solicitudes"; filePickerLauncher.launch("*/*") }
             )
 
             // Tarjeta: Equipos
@@ -109,6 +126,7 @@ fun BackupExportScreen(
                 textPrimary = textPrimary,
                 textSecondary = textSecondary,
                 onExport = { vm.exportEquipment() },
+                onImport = { importType = "Equipos"; filePickerLauncher.launch("*/*") }
             )
 
             // Tarjeta: Usuarios
@@ -120,6 +138,7 @@ fun BackupExportScreen(
                 textPrimary = textPrimary,
                 textSecondary = textSecondary,
                 onExport = { vm.exportUsers() },
+                onImport = { importType = "Usuarios"; filePickerLauncher.launch("*/*") }
             )
 
             vm.errorMsg?.let {
@@ -142,6 +161,7 @@ private fun ExportCard(
     textPrimary: Color,
     textSecondary: Color,
     onExport: () -> Unit,
+    onImport: () -> Unit,
 ) {
     val blue = Color(0xFF0B4F7A); val cyan = Color(0xFF00C8F0)
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = cardBg)) {
@@ -173,20 +193,34 @@ private fun ExportCard(
                     Text("Generando CSV...", color = textSecondary, fontSize = 13.sp)
                 }
             } else {
-                Button(
-                    onClick = onExport,
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(blue, iconTint.copy(alpha = 0.8f))), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center,
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onExport,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(blue, iconTint.copy(alpha = 0.8f))), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.FileDownload, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Text("Exportar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onImport,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = iconTint),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, iconTint.copy(alpha = 0.5f))
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.FileDownload, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Text("Exportar CSV", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Filled.FileUpload, null, modifier = Modifier.size(18.dp))
+                            Text("Importar", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

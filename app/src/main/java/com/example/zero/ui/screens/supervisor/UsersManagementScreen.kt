@@ -62,6 +62,24 @@ fun UsersManagementScreen(
                     Text("Gestión de Usuarios", color = textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
                 Text("${vm.filteredUsers.size} usuarios · Toca para editar", color = textSecondary, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = vm.searchCedula,
+                    onValueChange = { vm.updateSearchCedula(it) },
+                    placeholder = { Text("Buscar por cédula...", color = textSecondary, fontSize = 14.sp) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "Buscar", tint = textSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
+                        focusedBorderColor = cyan.copy(alpha = 0.7f),
+                        unfocusedContainerColor = cardBg,
+                        focusedContainerColor = cardBg,
+                        unfocusedTextColor = textPrimary,
+                        focusedTextColor = textPrimary,
+                    ),
+                    singleLine = true
+                )
             }
 
             // Filtros por rol
@@ -85,6 +103,17 @@ fun UsersManagementScreen(
 
             if (vm.isLoading) {
                 item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = cyan) } }
+            } else if (vm.filteredUsers.isEmpty() && vm.searchCedula.isNotBlank()) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardBg)) {
+                        Column(modifier = Modifier.padding(32.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Outlined.SearchOff, null, tint = textSecondary.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Text("La cédula no existe", color = textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Verifica la cédula e intenta de nuevo.", color = textSecondary, fontSize = 13.sp)
+                        }
+                    }
+                }
             } else {
                 items(vm.filteredUsers, key = { it.user.id ?: it.user.email }) { uwp ->
                     val roleColor = roleColors[uwp.user.role] ?: textSecondary
